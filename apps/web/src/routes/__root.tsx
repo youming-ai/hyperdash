@@ -65,14 +65,14 @@ function ThemeToggle() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="rail-item"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[hsl(var(--fg-tertiary))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
       title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
       aria-label="Toggle theme"
     >
       {theme === 'light' ? (
-        <Moon className="h-[16px] w-[16px]" strokeWidth={1.8} />
+        <Moon className="h-4 w-4" strokeWidth={1.8} />
       ) : (
-        <Sun className="h-[16px] w-[16px]" strokeWidth={1.8} />
+        <Sun className="h-4 w-4" strokeWidth={1.8} />
       )}
     </button>
   );
@@ -99,21 +99,21 @@ function RootComponent() {
       {/* Content column */}
       <div className="md:pl-14">
         <header className="app-topbar">
-          <div className="flex h-[52px] items-center justify-between px-4 sm:px-6">
-            <div className="flex items-center gap-3">
+          <div className="flex h-[52px] items-center justify-between gap-2 px-3 sm:px-6">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setMobileOpen((v) => !v)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--muted))] md:hidden"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[hsl(var(--muted))] md:hidden"
                 aria-label="Toggle navigation"
                 aria-expanded={mobileOpen}
               >
                 {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
               </button>
-              <span className="text-[15px] font-semibold tracking-tight">HyperDash</span>
-              <span className="badge badge-accent hidden sm:inline-flex">HYPERLIQUID</span>
+              <span className="shrink-0 text-[15px] font-semibold tracking-tight">HyperDash</span>
+              <span className="badge badge-accent hidden shrink-0 sm:inline-flex">HYPERLIQUID</span>
             </div>
-            <nav className="hidden items-center gap-1 md:flex">
+            <nav className="hidden shrink-0 items-center gap-1 md:flex">
               {NAV.map((item) => (
                 <Link
                   key={item.to}
@@ -125,15 +125,17 @@ function RootComponent() {
                 </Link>
               ))}
             </nav>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
               <ThemeToggle />
-              <span className="hidden sm:inline-flex">
-                <ConnectButton showBalance={false} accountStatus="address" chainStatus="icon" />
+              <span className="hidden shrink-0 sm:inline-flex max-w-[160px]">
+                <ConnectButton showBalance={false} accountStatus="address" chainStatus="none" />
               </span>
-              <span className="sm:hidden">
+              <span className="inline-flex shrink-0 sm:hidden">
                 <ConnectButton showBalance={false} accountStatus="avatar" chainStatus="none" />
               </span>
-              <AuthButton />
+              <span className="shrink-0">
+                <AuthButton />
+              </span>
             </div>
           </div>
           {/* Mobile drawer */}
