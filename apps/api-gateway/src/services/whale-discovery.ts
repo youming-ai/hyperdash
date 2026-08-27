@@ -38,6 +38,9 @@ export class WhaleDiscovery {
   >();
   private readonly startedAt = Date.now();
   private readonly listener: (trades: FeedTrade[]) => void;
+  // ponytail: cache smallest to avoid O(n) scan on every saturated insert — rescan only when evicted/updated
+  private smallestKey: string | null = null;
+  private smallestNotional = Number.POSITIVE_INFINITY;
 
   constructor(
     feed: HyperliquidFeed,
@@ -106,26 +109,44 @@ export class WhaleDiscovery {
   private record(address: string, notional: number, now: number): void {
     const entry = this.totals.get(address);
     if (entry) {
+      const wasSmallest = address === this.smallestKey;
       entry.notionalUsd += notional;
       entry.trades += 1;
       entry.lastSeen = now;
+      if (wasSmallest) this.rescanSmallest();
+      else if (entry.notionalUsd < this.smallestNotional) {
+        this.smallestKey = address;
+        this.smallestNotional = entry.notionalUsd;
+      }
       return;
     }
-    // Bound memory: when saturated, evict the smallest holder only if the new
-    // trade is meaningful; otherwise skip tracking this address.
     if (this.totals.size >= (this.options.maxTrackedAddresses ?? 20_000)) {
       if (notional < (this.options.minNotionalUsd ?? 100_000) / 10) return;
-      let minKey: string | null = null;
-      let minNotional = Number.POSITIVE_INFINITY;
-      for (const [key, value] of this.totals) {
-        if (value.notionalUsd < minNotional) {
-          minNotional = value.notionalUsd;
-          minKey = key;
-        }
-      }
-      if (minKey && minNotional < notional) this.totals.delete(minKey);
-      else return;
+      if (this.smallestKey === null) this.rescanSmallest();
+      const minNotional = this.smallestNotional;
+      const minKey = this.smallestKey;
+      if (minKey && minNotional < notional) {
+        this.totals.delete(minKey);
+        this.smallestKey = null;
+      } else return;
     }
     this.totals.set(address, { notionalUsd: notional, trades: 1, lastSeen: now });
+    if (notional < this.smallestNotional) {
+      this.smallestKey = address;
+      this.smallestNotional = notional;
+    }
+  }
+
+  private rescanSmallest(): void {
+    let minKey: string | null = null;
+    let minNotional = Number.POSITIVE_INFINITY;
+    for (const [key, value] of this.totals) {
+      if (value.notionalUsd < minNotional) {
+        minNotional = value.notionalUsd;
+        minKey = key;
+      }
+    }
+    this.smallestKey = minKey;
+    this.smallestNotional = minNotional;
   }
 }

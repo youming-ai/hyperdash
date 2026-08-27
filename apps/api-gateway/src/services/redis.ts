@@ -368,6 +368,15 @@ export class RedisClient {
     }
   }
 
+  async zrangebyscore(key: string, min: number | string, max: number | string): Promise<string[]> {
+    try {
+      return await this.client.zrangebyscore(key, min as number, max as number);
+    } catch (error) {
+      this.logger.error(`Redis ZRANGEBYSCORE error for key ${key}:`, error);
+      throw error;
+    }
+  }
+
   // Pipeline operations
   createPipeline(): ChainableCommander {
     return this.client.pipeline();

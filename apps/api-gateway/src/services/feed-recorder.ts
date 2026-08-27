@@ -302,9 +302,13 @@ export class FeedRecorder {
   ): Promise<Array<Record<string, unknown>>> {
     if (!this.store) return [];
     try {
-      const all = await this.store.zrange(key, 0, -1);
+      // ponytail: score is ts for funding/px/oi, so BYSCORE avoids pulling 7d of history into JS
+      const rawMembers =
+        opts.minTs !== undefined || opts.maxTs !== undefined
+          ? await this.store.zrangebyscore(key, opts.minTs ?? '-inf', opts.maxTs ?? '+inf')
+          : await this.store.zrange(key, 0, -1);
       const rows: Array<Record<string, unknown>> = [];
-      for (const member of all) {
+      for (const member of rawMembers) {
         try {
           const parsed = JSON.parse(member) as Record<string, unknown>;
           const ts = Number(parsed.ts ?? parsed.t ?? 0);
