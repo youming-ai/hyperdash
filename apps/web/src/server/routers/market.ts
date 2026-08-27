@@ -1,34 +1,19 @@
 import { zValidator } from '@hono/zod-validator';
 import { traderPositions } from '@hyperdash/database/schema';
+import {
+  type HyperliquidAssetCtx,
+  type HyperliquidMeta,
+  hyperliquidRequest,
+} from '@hyperdash/shared-types';
 import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '~/server/types';
 
 // ---------------------------------------------------------------------------
-// Hyperliquid Info API helpers.
+// Hyperliquid Info API helpers (shared client with retry/backoff lives in
+// @hyperdash/shared-types/hyperliquid).
 // ---------------------------------------------------------------------------
-
-interface HyperliquidUniverseItem {
-  name: string;
-  szDecimals: number;
-  maxLeverage: number;
-  isDelisted?: boolean;
-}
-
-interface HyperliquidMeta {
-  universe: HyperliquidUniverseItem[];
-}
-
-interface HyperliquidAssetCtx {
-  dayNtlVlm: string;
-  funding: string;
-  markPx: string;
-  midPx?: string | null;
-  openInterest: string;
-  oraclePx: string;
-  prevDayPx: string;
-}
 
 type HyperliquidMetaAndAssetCtxs = [HyperliquidMeta, HyperliquidAssetCtx[]];
 
@@ -44,8 +29,6 @@ interface HyperliquidCandle {
   v: string;
   n: number;
 }
-
-const DEFAULT_TIMEOUT_MS = 10_000;
 
 const TIMEFRAME_INTERVALS: Record<string, string> = {
   '1m': '1m',
@@ -81,30 +64,7 @@ const TIMEFRAME_MS: Record<string, number> = {
   '1M': 2_592_000_000,
 };
 
-function resolveInfoUrl(raw: string): string {
-  return raw.endsWith('/info') ? raw : `${raw.replace(/\/$/, '')}/info`;
-}
-
-async function hyperliquidRequest<T>(apiUrl: string, body: Record<string, unknown>): Promise<T> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-  try {
-    const res = await fetch(resolveInfoUrl(apiUrl), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      throw new Error(
-        `Hyperliquid info(${String(body.type)}) failed: ${res.status} ${res.statusText}`,
-      );
-    }
-    return (await res.json()) as T;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+// hyperliquidRequest imported from @hyperdash/shared-types (retry + jitter included)
 
 // ---------------------------------------------------------------------------
 // Input validation.

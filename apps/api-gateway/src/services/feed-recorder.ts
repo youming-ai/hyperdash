@@ -52,7 +52,8 @@ export class FeedRecorder {
   private readonly feed: HyperliquidFeed;
   private readonly store: RedisClient | null;
   private readonly whales: Set<string>;
-  private buckets = new Map<string, MinuteBucket>();
+  // ponytail: nested map avoids string key split and O(n) string parsing on every trade
+  private buckets = new Map<string, Map<number, MinuteBucket>>();
   private lastHourByCoin = new Map<string, number>();
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private logRedisFailureOnce = false;
@@ -156,8 +157,12 @@ export class FeedRecorder {
   }
 
   private getBucket(coin: string, minuteTs: number, seedPx: number): MinuteBucket {
-    const key = `${coin}:${minuteTs}`;
-    let bucket = this.buckets.get(key);
+    let byCoin = this.buckets.get(coin);
+    if (!byCoin) {
+      byCoin = new Map<number, MinuteBucket>();
+      this.buckets.set(coin, byCoin);
+    }
+    let bucket = byCoin.get(minuteTs);
     if (!bucket) {
       bucket = {
         ts: minuteTs * 60_000,
@@ -176,13 +181,11 @@ export class FeedRecorder {
         lastFlushedWhaleBuy: 0,
         lastFlushedWhaleSell: 0,
       };
-      this.buckets.set(key, bucket);
-      // Drop anything older than 6 minutes to bound memory.
+      byCoin.set(minuteTs, bucket);
       const cutoff = minuteTs - 6;
-      for (const k of this.buckets.keys()) {
-        const parts = k.split(':');
-        const ts = Number(parts[parts.length - 1]);
-        if (Number.isFinite(ts) && ts < cutoff) this.buckets.delete(k);
+      for (const [c, m] of this.buckets) {
+        for (const ts of m.keys()) if (ts < cutoff) m.delete(ts);
+        if (m.size === 0) this.buckets.delete(c);
       }
     }
     return bucket;
@@ -192,41 +195,43 @@ export class FeedRecorder {
     if (!this.store || this.buckets.size === 0) return;
     const pipe = this.store.createPipeline();
     const nowMinuteTs = Math.floor(Date.now() / 60_000);
-    const lastMinute = new Map<string, MinuteBucket>();
+    const keep = new Map<string, Map<number, MinuteBucket>>();
 
-    for (const [key, bucket] of this.buckets) {
-      const minuteTs = Number(key.split(':').at(-1));
-      const coin = key.slice(0, key.lastIndexOf(':'));
-      const member = `${coin}|${minuteTs}`;
-      // C3 fix: only flush the delta since last flush (bucket is retained for
-      // the current minute and re-flushed each second).
-      const dNotional = bucket.notionalUsd - bucket.lastFlushedNotional;
-      const dBuy = bucket.buyNotionalUsd - bucket.lastFlushedBuy;
-      if (dNotional !== 0) pipe.zincrby('feed:vol:min', dNotional, member);
-      if (dBuy !== 0) pipe.zincrby('feed:vol:buy:min', dBuy, member);
-      if (bucket.whaleTrades > 0) {
-        const dNet = bucket.whaleNet - bucket.lastFlushedWhaleNet;
-        const dWhaleBuy = bucket.whaleBuy - bucket.lastFlushedWhaleBuy;
-        const dWhaleSell = bucket.whaleSell - bucket.lastFlushedWhaleSell;
-        if (dNet !== 0) pipe.zincrby('feed:whaleflow:min', dNet, member);
-        if (dWhaleBuy !== 0) pipe.zincrby('feed:whaleflow:buy:min', dWhaleBuy, member);
-        if (dWhaleSell !== 0) pipe.zincrby('feed:whaleflow:sell:min', dWhaleSell, member);
-      }
-      bucket.lastFlushedNotional = bucket.notionalUsd;
-      bucket.lastFlushedBuy = bucket.buyNotionalUsd;
-      bucket.lastFlushedWhaleNet = bucket.whaleNet;
-      bucket.lastFlushedWhaleBuy = bucket.whaleBuy;
-      bucket.lastFlushedWhaleSell = bucket.whaleSell;
-      // Keep the current minute's bucket in memory for stress detection at close.
-      if (minuteTs === nowMinuteTs) {
-        lastMinute.set(key, bucket);
-      } else {
-        this.recordClosedMinute(coin, bucket.notionalUsd);
-        this.detectStress(pipe, coin, bucket);
+    for (const [coin, byCoin] of this.buckets) {
+      for (const [minuteTs, bucket] of byCoin) {
+        const member = `${coin}|${minuteTs}`;
+        const dNotional = bucket.notionalUsd - bucket.lastFlushedNotional;
+        const dBuy = bucket.buyNotionalUsd - bucket.lastFlushedBuy;
+        if (dNotional !== 0) pipe.zincrby('feed:vol:min', dNotional, member);
+        if (dBuy !== 0) pipe.zincrby('feed:vol:buy:min', dBuy, member);
+        if (bucket.whaleTrades > 0) {
+          const dNet = bucket.whaleNet - bucket.lastFlushedWhaleNet;
+          const dWhaleBuy = bucket.whaleBuy - bucket.lastFlushedWhaleBuy;
+          const dWhaleSell = bucket.whaleSell - bucket.lastFlushedWhaleSell;
+          if (dNet !== 0) pipe.zincrby('feed:whaleflow:min', dNet, member);
+          if (dWhaleBuy !== 0) pipe.zincrby('feed:whaleflow:buy:min', dWhaleBuy, member);
+          if (dWhaleSell !== 0) pipe.zincrby('feed:whaleflow:sell:min', dWhaleSell, member);
+        }
+        bucket.lastFlushedNotional = bucket.notionalUsd;
+        bucket.lastFlushedBuy = bucket.buyNotionalUsd;
+        bucket.lastFlushedWhaleNet = bucket.whaleNet;
+        bucket.lastFlushedWhaleBuy = bucket.whaleBuy;
+        bucket.lastFlushedWhaleSell = bucket.whaleSell;
+        if (minuteTs === nowMinuteTs) {
+          let km = keep.get(coin);
+          if (!km) {
+            km = new Map<number, MinuteBucket>();
+            keep.set(coin, km);
+          }
+          km.set(minuteTs, bucket);
+        } else {
+          this.recordClosedMinute(coin, bucket.notionalUsd);
+          this.detectStress(pipe, coin, bucket);
+        }
       }
     }
 
-    this.buckets = lastMinute; // non-current buckets are persisted or dropped
+    this.buckets = keep;
     try {
       await pipe.exec();
     } catch {

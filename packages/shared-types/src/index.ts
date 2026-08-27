@@ -248,6 +248,14 @@ export {
   VolumePoint,
   WhaleFlowPoint,
 } from './feed';
+export type { HyperliquidAssetCtx, HyperliquidMeta } from './hyperliquid';
+export {
+  HyperliquidApiError,
+  HyperliquidAssetCtxSchema,
+  HyperliquidMetaSchema,
+  hyperliquidRequest,
+  resolveInfoUrl,
+} from './hyperliquid';
 
 import {
   FeedBookSchema,
