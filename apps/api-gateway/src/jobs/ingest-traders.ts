@@ -2,7 +2,7 @@
  * Data Ingestion Job for Trader Data
  *
  * This module contains functions to fetch trader data from Hyperliquid API
- * and store it in the database for the Whale Tracker application.
+ * and store it in the database for the HYPERDASH application.
  *
  * Usage:
  *   pnpm ingest:traders                    # Ingest known whale addresses

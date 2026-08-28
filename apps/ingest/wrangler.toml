@@ -1,0 +1,30 @@
+name = "hyperdash-ingest"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Ingest Worker — for future Workers deployment (Queues + Cron).
+# Current local run is Bun Container (apps/ingest/src/index.ts).
+# When deployed as Worker, Hyperliquid WS client must use Containers.
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+[[queues.producers]]
+queue = "feed-batches"
+binding = "FEED_QUEUE"
+
+[[queues.consumers]]
+queue = "feed-batches"
+max_batch_size = 100
+max_batch_timeout = 1
+
+[observability]
+enabled = true
+
+[placement]
+mode = "smart"
+
+[vars]
+HYPERLIQUID_WS_URL = "wss://api.hyperliquid.xyz/ws"
+HYPERLIQUID_API_URL = "https://api.hyperliquid.xyz/info"

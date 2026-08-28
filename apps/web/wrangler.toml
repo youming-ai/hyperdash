@@ -3,6 +3,9 @@ main = "@tanstack/react-start/server-entry"
 compatibility_date = "2025-06-01"
 compatibility_flags = ["nodejs_compat"]
 
+[placement]
+mode = "smart"
+
 [observability]
 enabled = true
 
@@ -23,6 +26,11 @@ id = "REPLACE_WITH_KV_ID"
 [vars]
 PUBLIC_ORIGIN = "http://localhost:5173"
 HYPERLIQUID_API_URL = "https://api.hyperliquid.xyz/info"
+# FE/BE split: FE calls BE via VITE_BE_URL (public, build-time). When set,
+# FE's api-client targets BE Worker directly; otherwise same-origin fallback.
+# Example: VITE_BE_URL="https://hyperdash-api.workers.dev"
+VITE_BE_URL = ""
+BE_URL = ""
 
 # Secrets (NEVER here): set with `wrangler secret put NAME`
 #   BETTER_AUTH_SECRET   (openssl rand -base64 32)

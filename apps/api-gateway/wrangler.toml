@@ -1,0 +1,36 @@
+name = "hyperdash-ingest"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Scheduled whale discovery — every 10 minutes (requires Workers Cron).
+# Local Express still uses setInterval fallback; Workers `scheduled()` calls the same handler.
+[triggers]
+crons = ["*/10 * * * *"]
+
+# Time-series feed batches → ClickHouse/Redis pipeline.
+# Producer binding for FeedRecorder → Queue; consumer runs as separate Worker or same.
+[[queues.producers]]
+queue = "feed-batches"
+binding = "FEED_QUEUE"
+
+[[queues.consumers]]
+queue = "feed-batches"
+max_batch_size = 100
+max_batch_timeout = 1
+
+# Future: Hyperdrive for direct PG ingest from Workers (edge pooler).
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "REPLACE_WITH_HYPERDRIVE_ID"
+
+[observability]
+enabled = true
+
+[placement]
+mode = "smart"
+
+[vars]
+HYPERLIQUID_API_URL = "https://api.hyperliquid.xyz/info"
+HL_INGEST_INTERVAL_MS = "600000"
+HL_AUTO_INGEST = "1"

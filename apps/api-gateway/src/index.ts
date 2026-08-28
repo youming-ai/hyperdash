@@ -2,7 +2,7 @@ import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
-import { ingestTraderAddresses } from './jobs/ingest-traders';
+import { createWhaleDiscoveryJob } from './jobs/whale-discovery.cron';
 import { createContext } from './lib/context';
 import { FeedWebSocketManager } from './lib/websocket';
 import { appRouter } from './routes';
@@ -14,6 +14,9 @@ import { getLogger } from './utils/logger';
 import { getHyperliquidFeed } from './websockets/hyperliquid-feed';
 
 const logger = getLogger();
+logger.warn(
+  '[DEPRECATED] apps/api-gateway (Express) is deprecated — use apps/web (FE), apps/api (BE Hono), apps/ingest (Worker) and apps/copy-engine (Go) independently. Removal 2026-09-30. See DEPRECATED.md.',
+);
 const app: express.Express = express();
 const PORT = process.env.PORT || 3000;
 
@@ -83,44 +86,34 @@ recorder.start();
 // Ranks addresses by live taker/maker volume, then periodically ingests their
 // full profiles (stats/trades/positions) into Postgres so the leaderboard and
 // whale-position panels populate without a hand-curated seed list.
+// Decoupled → Cron Trigger (skill: Scheduled jobs → Cron): same handler for
+// Node setInterval and Workers `scheduled(event, env, ctx)`.
 const discovery = new WhaleDiscovery(feed);
+const discoveryJob = createWhaleDiscoveryJob(discovery, recorder);
 
 if (process.env.HL_AUTO_INGEST !== '0') {
   const ingestIntervalMs = Number(process.env.HL_INGEST_INTERVAL_MS ?? 600_000);
-  let ingesting = false;
-  const runIngest = async (): Promise<void> => {
-    if (ingesting) return;
-    if (!discovery.isReady()) return;
-    ingesting = true;
-    try {
-      const whales = discovery.getTopWhales(20);
-      if (whales.length === 0) return;
-      // Track discovered whales in the whale-flow recorder.
-      recorder.addWhales(whales.map((w) => w.address));
-      const result = await ingestTraderAddresses(
-        whales.map((w) => w.address),
-        { concurrency: 5 },
-      );
-      logger.info('Auto-ingest cycle complete', {
-        whales: whales.length,
-        successful: result.successful,
-        failed: result.failed,
-        tracked: discovery.trackedAddressCount,
-      });
-    } catch (error) {
-      logger.warn(
-        `Auto-ingest skipped (is Postgres reachable?): ${error instanceof Error ? error.message : String(error)}`,
-      );
-    } finally {
-      ingesting = false;
-    }
-  };
-  // First run after the discovery sample window (5 min), then every interval.
+  // First run after sample window (5 min), then every interval.
   setTimeout(() => {
-    void runIngest();
-    setInterval(() => void runIngest(), ingestIntervalMs);
+    void discoveryJob.handler();
+    setInterval(() => void discoveryJob.handler(), ingestIntervalMs);
   }, 5 * 60_000);
 }
+
+// HTTP trigger for Workers Cron or manual invocation (`curl -X POST /jobs/whale-discovery`).
+// Workers `scheduled()` can call the same `discoveryJob.handler()` directly.
+app.post('/jobs/whale-discovery', async (_req, res) => {
+  if (discoveryJob.isIngesting()) {
+    res.status(429).json({ error: 'ingest already running' });
+    return;
+  }
+  const result = await discoveryJob.handler();
+  if (result === null) {
+    res.status(202).json({ status: 'skipped', reason: 'not ready or no whales' });
+    return;
+  }
+  res.json({ status: 'ok', ...result });
+});
 
 // Optional copy-engine autostart — OFF by default (places real orders).
 if (process.env.HL_COPY_ENGINE_AUTOSTART === '1') {
@@ -161,12 +154,13 @@ app.get('/feed/state', (_req, res) => {
 app.get('/feed/whales', (_req, res) => {
   res.json({
     // Statically configured seeds + live-discovered whales (ranked by volume).
-    addresses: recorder.getWhaleAddresses(),
-    discovered: discovery.getTopWhales(50).map((w) => ({
-      address: w.address,
-      notionalUsd: Math.round(w.notionalUsd),
-      trades: w.trades,
-    })),
+    discovered: discovery
+      .getTopWhales(50)
+      .map((w: { address: string; notionalUsd: number; trades: number }) => ({
+        address: w.address,
+        notionalUsd: Math.round(w.notionalUsd),
+        trades: w.trades,
+      })),
     sampleSeconds: discovery.sampleSeconds,
     ready: discovery.isReady(),
   });

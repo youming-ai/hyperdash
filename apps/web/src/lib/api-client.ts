@@ -1,12 +1,21 @@
 import { hc } from 'hono/client';
 import type { AppType } from '~/server/hono';
 
-// `import type` keeps the server app (db/auth/postgres) out of the client bundle;
-// the AppType shape is erased at build time. `.api` matches the Hono `basePath`,
-// so callers use `api.traders.$get(...)` rather than `api.api.traders`.
+// FE/BE split: when VITE_BE_URL (public) or BE_URL (server) is set, FE
+// calls the standalone BE Worker directly. Otherwise falls back to same-origin
+// `/api` (FE+BE co-located, local dev). `import type` keeps server AppType out
+// of the client bundle — shape is erased at build time.
+const beUrl =
+  (typeof window !== 'undefined'
+    ? import.meta.env.VITE_BE_URL
+    : (import.meta.env.VITE_BE_URL ?? '')
+  )?.replace(/\/$/, '') ?? '';
+
 const baseUrl =
-  typeof window !== 'undefined'
+  beUrl ||
+  (typeof window !== 'undefined'
     ? window.location.origin
-    : (import.meta.env.VITE_PUBLIC_ORIGIN ?? 'http://localhost:5173');
+    : (import.meta.env.VITE_PUBLIC_ORIGIN ?? 'http://localhost:5173'));
 
 export const api = hc<AppType>(baseUrl).api;
+export const beBaseUrl = beUrl;
