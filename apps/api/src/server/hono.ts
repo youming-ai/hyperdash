@@ -5,6 +5,7 @@ import { createDb } from '~/db';
 import { createAuth } from '~/lib/auth';
 import { withSession } from '~/server/middleware/auth';
 import { analyticsRouter } from '~/server/routers/analytics';
+import { jobsRouter } from '~/server/routers/jobs';
 import { marketRouter } from '~/server/routers/market';
 import { strategiesRouter } from '~/server/routers/strategies';
 import { systemRouter } from '~/server/routers/system';
@@ -53,6 +54,7 @@ export const app = new Hono<AppEnv>()
   .route('/market', marketRouter)
   .route('/user', userRouter)
   .route('/analytics', analyticsRouter)
-  .route('/system', systemRouter);
+  .route('/system', systemRouter)
+  .route('/jobs', jobsRouter);
 
 export type AppType = typeof app;

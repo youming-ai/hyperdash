@@ -7,12 +7,17 @@ This is a Turborepo + **Bun** monorepo for a Hyperliquid copy trading platform.
 ```
 apps/
   web/              # TanStack Start app on Cloudflare Workers (Vite, port 5173)
+  api/              # Standalone Hono API backend on Cloudflare Workers (port 5174)
                     #   - Hono API at /api/*  (src/server/hono.ts)
                     #   - Better Auth SIWE    (src/lib/auth.ts)
                     #   - Drizzle over Hyperdrive (src/db/index.ts)
-  api-gateway/      # Background ingestion + execution plane (Express, port 3000)
-                    #   Hyperliquid polling/jobs that populate the DB. NOT the web API.
-  copy-engine/      # Go trading engine that executes copied trades (port 3006)
+  ingest/           # Real-time Ingestion & WS Hub (Bun container, port 3001)
+                    #   - Hyperliquid WS shards + FeedRecorder -> Redis
+                    #   - Browser WebSocket server at /ws
+                    #   - Whale discovery cron -> BE /api/jobs/whale-discovery
+  copy-engine/      # Go trading engine that executes copied trades (port 8080)
+                    #   - Consumes copy:signals from Redis
+  api-gateway/      # [DEPRECATED 2026-08-28, removal 2026-09-30] Legacy Express + tRPC
 packages/
   database/         # Drizzle ORM schemas, migrations, Better Auth tables
   shared-types/     # Shared Zod schemas / TypeScript types
@@ -30,7 +35,8 @@ schema via the Worker-safe subpaths `@hyperdash/database/schema` and
 | `bun install` | Install dependencies |
 | `bun run dev` | Start web + API gateway concurrently |
 | `bun run dev:web` | Start web app only (Vite) |
-| `bun run dev:api` | Start ingestion gateway only |
+| `bun run dev:api` | Start BE Hono Worker only (`apps/api`, port 5174) |
+| `bun run dev:ingest` | Start ingest WS hub only (`apps/ingest`, port 3001) |
 | `bun run build` | Build all packages/apps |
 | `bun run test` | Run tests via Turborepo (`bun test`) |
 | `bun run type-check` | TypeScript `--noEmit` across workspace |

@@ -16,7 +16,8 @@
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "lint": "biome check src",
-    "lint:fix": "biome check --write src"
+    "lint:fix": "biome check --write src",
+    "test": "bun test src/"
   },
   "dependencies": {
     "zod": "^4.3.6",

@@ -20,4 +20,6 @@ export interface WorkerEnv {
   LOG_LEVEL?: string;
   // FE/BE split
   BE_URL?: string;
+  // Shared secret for machine-to-machine job endpoints (ingest cron -> BE).
+  JOBS_SECRET?: string;
 }

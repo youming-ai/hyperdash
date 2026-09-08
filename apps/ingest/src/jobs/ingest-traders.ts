@@ -17,7 +17,10 @@ export async function ingestTraderAddresses(
     try {
       const res = await fetch(`${beUrl.replace(/\/$/, '')}/api/jobs/whale-discovery`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          ...(process.env.JOBS_SECRET ? { 'x-jobs-secret': process.env.JOBS_SECRET } : {}),
+        },
         body: JSON.stringify({ addresses }),
       });
       if (res.ok) {
