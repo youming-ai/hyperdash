@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=web",
-    "dev:api": "turbo run dev --filter=@hyperdash/api-gateway",
-    "dev:all": "concurrently \"turbo run dev --filter=@hyperdash/api-gateway\" \"turbo run dev --filter=web\"",
+    "dev:api": "turbo run dev --filter=api",
+    "dev:ingest": "turbo run dev --filter=@hyperdash/ingest",
+    "dev:all": "concurrently \"turbo run dev --filter=api\" \"turbo run dev --filter=web\" \"turbo run dev --filter=@hyperdash/ingest\"",
     "build": "turbo run build",
     "start": "turbo run start",
     "test": "turbo run test",
@@ -25,7 +26,7 @@
     "db:generate": "cd packages/database/postgres && bun run migrate:generate"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.10",
+    "@biomejs/biome": "^2.5.12",
     "@types/node": "^22.20.1",
     "concurrently": "^9.2.4",
     "lefthook": "^1.13.6",
