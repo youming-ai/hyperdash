@@ -3,33 +3,31 @@ import type * as React from 'react';
 
 import { cn } from '~/lib/utils';
 
-const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+/**
+ * Badge — the single badge primitive. Direction is communicated by the label
+ * and an optional icon, never by colour alone.
+ */
+export const badgeVariants = cva(
+  'inline-flex items-center gap-1 rounded-sm px-1.5 h-[18px] text-2xs font-medium whitespace-nowrap',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80',
-        secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        destructive:
-          'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
-        outline: 'text-foreground',
-        success: 'border-transparent bg-success text-white shadow hover:bg-success/80',
-        warning: 'border-transparent bg-warning text-white shadow hover:bg-warning/80',
+        neutral: 'text-fg-tertiary bg-raised',
+        outline: 'text-fg-secondary border border-[var(--border-strong)]',
+        accent: 'text-fg-accent bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]',
+        up: 'text-up bg-[color-mix(in_oklab,var(--up)_14%,transparent)]',
+        down: 'text-down bg-[color-mix(in_oklab,var(--down)_14%,transparent)]',
+        warning: 'text-warning bg-[color-mix(in_oklab,var(--warning)_14%,transparent)]',
       },
     },
-    defaultVariants: {
-      variant: 'default',
-    },
+    defaultVariants: { variant: 'neutral' },
   },
 );
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+export function Badge({ className, variant, ...props }: BadgeProps) {
+  return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
-
-export { Badge, badgeVariants };

@@ -1,21 +1,19 @@
 /// <reference types="vite/client" />
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/react-router';
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import {
-  Activity,
-  BarChart3,
-  Copy,
-  LayoutDashboard,
-  Menu,
-  Moon,
-  Sun,
-  Users,
-  X,
-} from 'lucide-react';
+  createRootRoute,
+  HeadContent,
+  Link,
+  Outlet,
+  Scripts,
+  useRouter,
+} from '@tanstack/react-router';
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
+import { AlertTriangle, Menu, Moon, RefreshCw, Sun, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { AuthButton } from '~/components/AuthButton';
+import { Button } from '~/components/ui/button';
+import { WalletButton } from '~/components/WalletButton';
 import { Providers, useTheme } from '~/providers';
 import appCss from '~/styles.css?url';
 
@@ -35,44 +33,34 @@ export const Route = createRootRoute({
   }),
   component: RootComponent,
   shellComponent: RootDocument,
+  notFoundComponent: NotFound,
+  errorComponent: RouteError,
 });
 
+/** One nav, one place. The old icon rail duplicated this list exactly. */
 const NAV = [
-  { to: '/', label: 'Overview', icon: LayoutDashboard },
-  { to: '/terminal', label: 'Terminal', icon: Activity },
-  { to: '/traders', label: 'Traders', icon: Users },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/strategies', label: 'Strategies', icon: Copy },
+  { to: '/', label: 'Overview' },
+  { to: '/terminal', label: 'Terminal' },
+  { to: '/traders', label: 'Traders' },
+  { to: '/analytics', label: 'Analytics' },
+  { to: '/strategies', label: 'Strategies' },
 ] as const;
-
-function NavLink({ to, label, Icon }: { to: string; label: string; Icon: typeof Activity }) {
-  return (
-    <Link
-      to={to}
-      className="rail-item"
-      activeProps={{ 'data-active': 'true' }}
-      title={label}
-      aria-label={label}
-    >
-      <Icon className="h-[18px] w-[18px]" strokeWidth={1.8} />
-    </Link>
-  );
-}
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
+  const next = theme === 'light' ? 'dark' : 'light';
   return (
     <button
       type="button"
       onClick={toggleTheme}
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[hsl(var(--fg-tertiary))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
-      title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
-      aria-label="Toggle theme"
+      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-raised hover:text-foreground cursor-pointer"
+      title={`Switch to ${next} theme`}
+      aria-label={`Switch to ${next} theme`}
     >
       {theme === 'light' ? (
-        <Moon className="h-4 w-4" strokeWidth={1.8} />
+        <Moon className="size-4" strokeWidth={1.8} />
       ) : (
-        <Sun className="h-4 w-4" strokeWidth={1.8} />
+        <Sun className="size-4" strokeWidth={1.8} />
       )}
     </button>
   );
@@ -80,94 +68,127 @@ function ThemeToggle() {
 
 function RootComponent() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  return (
-    <div className="min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
-      {/* Left icon rail — desktop */}
-      <aside className="app-rail">
-        <Link to="/" className="rail-item" title="HyperDash" activeProps={{}}>
-          <span className="font-mono text-[15px] font-bold text-[hsl(var(--primary))]">H</span>
-        </Link>
-        <div className="my-1 h-px w-6 bg-[hsl(var(--border))]" />
-        {NAV.map((item) => (
-          <NavLink key={item.to} to={item.to} label={item.label} Icon={item.icon} />
-        ))}
-        <div className="mt-auto flex flex-col items-center gap-1">
-          <span className="status-dot status-dot-live animate-live" title="Feed live" />
-        </div>
-      </aside>
 
-      {/* Content column */}
-      <div className="md:pl-14">
-        <header className="app-topbar">
-          <div className="flex h-[52px] items-center justify-between gap-2 px-3 sm:px-6">
-            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => setMobileOpen((v) => !v)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[hsl(var(--muted))] md:hidden"
-                aria-label="Toggle navigation"
-                aria-expanded={mobileOpen}
+  return (
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="app-topbar">
+        <div className="mx-auto flex h-[52px] w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5">
+          <button
+            type="button"
+            onClick={() => setMobileOpen((open) => !open)}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-tertiary hover:bg-raised hover:text-foreground md:hidden cursor-pointer"
+            aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
+            aria-expanded={mobileOpen}
+            aria-controls="app-mobile-nav"
+          >
+            {mobileOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+          </button>
+
+          <Link
+            to="/"
+            className="-m-1.5 flex shrink-0 items-center gap-2 rounded-md p-1.5"
+            aria-label="HyperDash home"
+          >
+            <span className="font-mono text-md font-bold tracking-tight text-fg-accent">HD</span>
+            <span className="hidden text-sm font-medium tracking-tight sm:inline">HyperDash</span>
+          </Link>
+
+          <nav aria-label="Primary" className="hidden min-w-0 items-center gap-0.5 md:flex">
+            {NAV.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="nav-link"
+                activeProps={{ 'data-active': 'true' }}
               >
-                {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-              </button>
-              <span className="shrink-0 text-[15px] font-semibold tracking-tight">HyperDash</span>
-              <span className="badge badge-accent hidden shrink-0 sm:inline-flex">HYPERLIQUID</span>
-            </div>
-            <nav className="hidden shrink-0 items-center gap-1 md:flex">
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Right cluster: every control is 32px tall so the row lines up.
+              Previously RainbowKit's stock 40px button sat between a 32px theme
+              toggle and a 28px auth button. */}
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <ThemeToggle />
+            <WalletButton />
+            <AuthButton />
+          </div>
+        </div>
+
+        {mobileOpen ? (
+          <nav
+            id="app-mobile-nav"
+            aria-label="Primary"
+            className="border-t border-border bg-panel px-2 py-2 md:hidden"
+          >
+            <div className="flex flex-col gap-0.5">
               {NAV.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="dock-tab"
+                  onClick={() => setMobileOpen(false)}
+                  className="nav-link w-full"
                   activeProps={{ 'data-active': 'true' }}
                 >
                   {item.label}
                 </Link>
               ))}
-            </nav>
-            <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-              <ThemeToggle />
-              <span className="hidden shrink-0 sm:inline-flex max-w-[160px]">
-                <ConnectButton showBalance={false} accountStatus="address" chainStatus="none" />
-              </span>
-              <span className="inline-flex shrink-0 sm:hidden">
-                <ConnectButton showBalance={false} accountStatus="avatar" chainStatus="none" />
-              </span>
-              <span className="shrink-0">
-                <AuthButton />
-              </span>
             </div>
-          </div>
-          {/* Mobile drawer */}
-          {mobileOpen && (
-            <nav className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 py-2 md:hidden">
-              <div className="flex flex-col gap-1">
-                {NAV.map((item) => (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-[hsl(var(--muted))]"
-                    activeProps={{
-                      className:
-                        'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium bg-[hsl(var(--muted))] text-[hsl(var(--primary))]',
-                    }}
-                  >
-                    <item.icon className="h-4 w-4" strokeWidth={1.8} />
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            </nav>
-          )}
-        </header>
+          </nav>
+        ) : null}
+      </header>
 
-        <main className="animate-fade-in">
-          <Outlet />
-        </main>
-      </div>
+      <main className="mx-auto w-full max-w-[1600px] grow px-3 py-4 sm:px-5">
+        <Outlet />
+      </main>
 
-      {import.meta.env.DEV && <TanStackRouterDevtools position="bottom-right" />}
+      <footer className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-3 text-2xs text-fg-quaternary sm:px-5">
+        <span>HyperDash — market data from the public Hyperliquid API</span>
+        <span>Not affiliated with Hyperliquid. Trading involves risk.</span>
+      </footer>
+
+      {import.meta.env.DEV ? <TanStackRouterDevtools position="bottom-right" /> : null}
+    </div>
+  );
+}
+
+function RouteError({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="panel mx-auto mt-8 flex max-w-md flex-col items-center gap-3 p-6 text-center">
+      <AlertTriangle className="size-6 text-destructive" strokeWidth={1.6} aria-hidden="true" />
+      <h1 className="text-lg font-medium">Something went wrong</h1>
+      <p className="text-sm text-fg-tertiary">
+        This view failed to render. The rest of the app is unaffected.
+      </p>
+      <p className="num max-w-full truncate text-2xs text-fg-quaternary" title={error.message}>
+        {error.message}
+      </p>
+      <Button
+        variant="primary"
+        onClick={() => {
+          void router.invalidate();
+          reset();
+        }}
+      >
+        <RefreshCw aria-hidden="true" />
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+function NotFound() {
+  return (
+    <div className="panel mx-auto mt-8 flex max-w-md flex-col items-center gap-3 p-6 text-center">
+      <h1 className="text-lg font-medium">Page not found</h1>
+      <p className="text-sm text-fg-tertiary">
+        That route does not exist. Check the address or head back to the overview.
+      </p>
+      <Link to="/" className="nav-link" data-active="true">
+        Back to overview
+      </Link>
     </div>
   );
 }

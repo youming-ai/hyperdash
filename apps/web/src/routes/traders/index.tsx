@@ -1,10 +1,29 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ArrowUpDown } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { api } from '~/lib/api-client';
-import { FEED_COINS, getFeedClient } from '~/lib/feed-client';
-import { formatCompactNumber, formatNumber, formatPnL, shortenAddress } from '~/lib/utils';
+import { useMemo, useState } from 'react';
+
+import { LiveMarketTape } from '~/components/LiveMarketTape';
+import { drawdownTone, drawdownValue, pnlTone, sharpeTone } from '~/components/trader-metrics';
+import { AddressText } from '~/components/ui/address';
+import { Button, buttonVariants } from '~/components/ui/button';
+import { PageHeader } from '~/components/ui/page-header';
+import { Panel, PanelHeader } from '~/components/ui/panel';
+import { Segmented, type SegmentedItem } from '~/components/ui/segmented';
+import { TONE_TEXT_CLASS } from '~/components/ui/stat-card';
+import { PanelState } from '~/components/ui/state';
+import { type SortOrder, TableWrap, Td, Th } from '~/components/ui/table';
+import { api, readJson } from '~/lib/api-client';
+import {
+  cn,
+  EM_DASH,
+  formatNumber,
+  formatPercent,
+  formatPnL,
+  formatUsd,
+  isRecentlyActive,
+  toNumber,
+  toNumberOrNull,
+} from '~/lib/utils';
 
 export const Route = createFileRoute('/traders/')({
   component: TradersPage,
@@ -12,10 +31,9 @@ export const Route = createFileRoute('/traders/')({
 
 type Timeframe = '7d' | '30d' | 'all';
 type SortBy = 'pnl' | 'winrate' | 'trades' | 'sharpe';
-type SortOrder = 'asc' | 'desc';
 
 interface Trader {
-  rank?: number;
+  rank: number;
   address: string;
   traderId: string;
   lastTradeAt: string | null;
@@ -29,304 +47,317 @@ interface Trader {
   totalTrades?: number | null;
 }
 
-function isRecentlyActive(lastTradeAt: string | null | undefined): boolean {
-  if (!lastTradeAt) return false;
-  const ms = Date.now() - new Date(lastTradeAt).getTime();
-  return ms >= 0 && ms < 7 * 24 * 60 * 60 * 1000;
+interface TradersListResponse {
+  traders: Trader[];
 }
 
-function pnlForTimeframe(trader: Trader, timeframe: Timeframe): number {
-  if (timeframe === '30d') return Number(trader.pnl30d ?? 0);
-  if (timeframe === 'all') return Number(trader.pnlAll ?? trader.pnl30d ?? 0);
-  return Number(trader.pnl7d ?? 0);
-}
+/** Server-side page size; the API caps `limit` at 100 and supports `offset`. */
+const PAGE_SIZE = 50;
+const TIMEFRAME_TABS_ID = 'leaderboard-timeframe';
+/** `#` column width; the pinned trader column starts exactly after it. */
+const RANK_COLUMN_WIDTH = 56;
+/** Below this magnitude a Sharpe ratio is noise, so it stays uncoloured. */
+const TIMEFRAMES: ReadonlyArray<SegmentedItem<Timeframe>> = [
+  { value: '7d', label: '7D' },
+  { value: '30d', label: '30D' },
+  { value: 'all', label: 'All time' },
+];
 
 function TradersPage() {
   const [timeframe, setTimeframe] = useState<Timeframe>('7d');
   const [sortBy, setSortBy] = useState<SortBy>('pnl');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showActiveOnly, setShowActiveOnly] = useState(false);
+  const [offset, setOffset] = useState(0);
 
-  const { data: rawTraders, isLoading } = useQuery({
-    queryKey: ['traders', { sortBy, sortOrder, timeframe, isActive: showActiveOnly }],
-    queryFn: async () => {
-      const res = await api.traders.$get({
-        query: {
-          limit: '50',
-          sortBy,
-          sortOrder,
-          timeframe,
-          isActive: showActiveOnly ? 'true' : 'false',
-        },
-      });
-      if (!res.ok) throw new Error('failed to load traders');
-      const body = (await res.json()) as unknown as { traders: Trader[] };
-      return body;
-    },
+  const { data, isPending, isPlaceholderData, isError, error, refetch } = useQuery({
+    queryKey: ['traders', { sortBy, sortOrder, timeframe, isActive: showActiveOnly, offset }],
+    queryFn: async () =>
+      readJson<TradersListResponse>(
+        await api.traders.$get({
+          query: {
+            limit: String(PAGE_SIZE),
+            offset: String(offset),
+            sortBy,
+            sortOrder,
+            timeframe,
+            isActive: showActiveOnly ? 'true' : 'false',
+          },
+        }),
+        'Traders leaderboard',
+      ),
+    // Keep the current page on screen while the next one loads: sorting,
+    // switching timeframe and paging must not blank the table.
+    placeholderData: keepPreviousData,
     refetchInterval: 30_000,
   });
 
-  const traders = (rawTraders?.traders ?? []).map((trader, i) => ({
-    ...trader,
-    rank: trader.rank ?? i + 1,
-  }));
+  const traders = useMemo(() => data?.traders ?? [], [data]);
 
-  const handleSortChange = (newSortBy: SortBy) => {
-    if (sortBy === newSortBy) {
+  const firstRank = traders[0]?.rank;
+  const lastRank = traders[traders.length - 1]?.rank;
+  const hasNextPage = traders.length === PAGE_SIZE;
+  const showingLabel =
+    firstRank === undefined || lastRank === undefined
+      ? 'No traders in this view'
+      : hasNextPage
+        ? `Showing ${formatNumber(firstRank)}–${formatNumber(lastRank)} · more available`
+        : `Showing ${formatNumber(firstRank)}–${formatNumber(lastRank)} of ${formatNumber(lastRank)}`;
+
+  function selectTimeframe(next: Timeframe) {
+    setTimeframe(next);
+    setOffset(0);
+  }
+
+  function toggleSort(column: SortBy) {
+    if (column === sortBy) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortBy(newSortBy);
+      setSortBy(column);
       setSortOrder('desc');
     }
-  };
+    setOffset(0);
+  }
+
+  function toggleActiveOnly() {
+    setShowActiveOnly((previous) => !previous);
+    setOffset(0);
+  }
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
-      {/* Header */}
-      <div className="mb-4 flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Leaderboard</h1>
-          <p className="mt-0.5 text-[13px] text-fg-tertiary">
-            Top Hyperliquid traders, auto-discovered by real volume
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowActiveOnly(!showActiveOnly)}
-          className="dock-tab"
-          data-active={showActiveOnly}
-        >
-          Active only
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="Leaderboard"
+        description="Top Hyperliquid traders, auto-discovered by real volume"
+        actions={
+          <>
+            <Segmented
+              items={TIMEFRAMES}
+              value={timeframe}
+              onChange={selectTimeframe}
+              label="PnL timeframe"
+              idBase={TIMEFRAME_TABS_ID}
+            />
+            <Button
+              variant={showActiveOnly ? 'primary' : 'outline'}
+              size="sm"
+              aria-pressed={showActiveOnly}
+              title="Only traders with a trade in the last 7 days"
+              onClick={toggleActiveOnly}
+            >
+              <span
+                className={cn('status-dot', showActiveOnly ? 'status-dot-live' : 'status-dot-idle')}
+                aria-hidden="true"
+              />
+              Active only
+            </Button>
+          </>
+        }
+      />
 
-      {/* Timeframe tabs */}
-      <div className="dock mb-3 w-fit">
-        {(['7d', '30d', 'all'] as const).map((tf) => (
-          <button
-            key={tf}
-            type="button"
-            className="dock-tab"
-            data-active={timeframe === tf}
-            onClick={() => setTimeframe(tf)}
-          >
-            {tf === 'all' ? 'All time' : tf.toUpperCase()}
-          </button>
-        ))}
-      </div>
+      <Panel aria-busy={isPending || isPlaceholderData}>
+        <PanelHeader
+          title="Trader leaderboard"
+          actions={
+            isPlaceholderData ? (
+              <span className="text-2xs text-fg-quaternary">Updating…</span>
+            ) : undefined
+          }
+        />
 
-      {/* Leaderboard table */}
-      <div className="panel overflow-hidden">
-        {isLoading ? (
-          <div className="py-16 text-center text-sm text-fg-tertiary">Loading traders…</div>
+        {isPending ? (
+          <PanelState state="loading" title="Loading traders…" />
+        ) : isError ? (
+          <PanelState
+            state="error"
+            title="Could not load the leaderboard"
+            description={
+              error instanceof Error ? error.message : 'The traders API did not respond.'
+            }
+            onRetry={() => void refetch()}
+          />
         ) : traders.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="text-sm text-fg-tertiary">
-              No traders yet — the auto-ingest cycle populates this from the live feed.
-            </p>
-          </div>
+          <PanelState
+            state="empty"
+            title="No traders yet"
+            description="The auto-ingest cycle populates this from the live feed. Try another timeframe, or turn off Active only."
+          />
         ) : (
-          <div className="max-h-[68vh] overflow-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 52 }}>#</th>
-                  <th>Trader</th>
-                  <th className="num-col">Equity</th>
-                  <th className="num-col">
-                    <SortHeader
-                      label={timeframe === 'all' ? 'All PnL' : `${timeframe} PnL`}
-                      active={sortBy === 'pnl'}
-                      order={sortOrder}
-                      onClick={() => handleSortChange('pnl')}
-                    />
-                  </th>
-                  <th className="num-col">
-                    <SortHeader
-                      label="Win rate"
-                      active={sortBy === 'winrate'}
-                      order={sortOrder}
-                      onClick={() => handleSortChange('winrate')}
-                    />
-                  </th>
-                  <th className="num-col">
-                    <SortHeader
-                      label="Trades"
-                      active={sortBy === 'trades'}
-                      order={sortOrder}
-                      onClick={() => handleSortChange('trades')}
-                    />
-                  </th>
-                  <th className="num-col">
-                    <SortHeader
-                      label="Sharpe"
-                      active={sortBy === 'sharpe'}
-                      order={sortOrder}
-                      onClick={() => handleSortChange('sharpe')}
-                    />
-                  </th>
-                  <th className="num-col">Max DD</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {traders.map((trader) => {
-                  const active = isRecentlyActive(trader.lastTradeAt);
-                  const pnl = pnlForTimeframe(trader, timeframe);
-                  const up = pnl >= 0;
-                  return (
-                    <tr key={trader.address}>
-                      <td className="num-col text-fg-quaternary">{trader.rank}</td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="status-dot"
-                            style={{
-                              background: active
-                                ? 'hsl(var(--success))'
-                                : 'hsl(var(--fg-quaternary))',
-                            }}
-                          />
-                          <span className="num text-[12.5px]">{shorten(trader.address)}</span>
-                        </div>
-                      </td>
-                      <td className="num-col">
-                        ${formatCompactNumber(Number(trader.equityUsd ?? 0))}
-                      </td>
-                      <td
-                        className={`num-col font-medium ${up ? 'text-success' : 'text-destructive'}`}
+          <>
+            <p className="border-b border-border px-3 py-1.5 text-2xs text-fg-quaternary md:hidden">
+              Swipe the table sideways — the rank and trader columns stay pinned.
+            </p>
+            <div id={`${TIMEFRAME_TABS_ID}-panel-${timeframe}`}>
+              <TableWrap
+                label="Trader leaderboard"
+                maxHeight="68vh"
+                className={cn('transition-opacity', isPlaceholderData && 'opacity-60')}
+              >
+                <table className="data-table">
+                  <caption className="sr-only">
+                    Traders ranked by the selected metric. Use the column headers to re-sort.
+                  </caption>
+                  <thead>
+                    <tr>
+                      <Th width={RANK_COLUMN_WIDTH} align="right" className="sticky-col min-w-14">
+                        #
+                      </Th>
+                      <Th className="sticky-col left-14!">Trader</Th>
+                      <Th align="right">Equity</Th>
+                      <Th
+                        align="right"
+                        sortable
+                        active={sortBy === 'pnl'}
+                        order={sortOrder}
+                        onSort={() => toggleSort('pnl')}
                       >
-                        {formatPnL(pnl)}
-                      </td>
-                      <td className="num-col">{Number(trader.winrate ?? 0).toFixed(1)}%</td>
-                      <td className="num-col text-fg-tertiary">
-                        {formatNumber(Number(trader.totalTrades ?? 0))}
-                      </td>
-                      <td
-                        className={`num-col ${Number(trader.sharpeRatio ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}
+                        {timeframe === 'all' ? 'All PnL' : `${timeframe.toUpperCase()} PnL`}
+                      </Th>
+                      <Th
+                        align="right"
+                        sortable
+                        active={sortBy === 'winrate'}
+                        order={sortOrder}
+                        onSort={() => toggleSort('winrate')}
+                        title="Share of closed round-trips that were profitable"
                       >
-                        {Number(trader.sharpeRatio ?? 0).toFixed(2)}
-                      </td>
-                      <td className="num-col text-fg-tertiary">
-                        {Number(trader.maxDrawdown ?? 0).toFixed(1)}%
-                      </td>
-                      <td className="num-col">
-                        <Link
-                          to="/traders/$address"
-                          params={{ address: trader.address }}
-                          className="text-[11.5px] text-fg-accent hover:underline"
-                        >
-                          Details
-                        </Link>
-                      </td>
+                        Win rate
+                      </Th>
+                      <Th
+                        align="right"
+                        sortable
+                        active={sortBy === 'trades'}
+                        order={sortOrder}
+                        onSort={() => toggleSort('trades')}
+                        title="Completed round-trips (close fills) on record"
+                      >
+                        Trades
+                      </Th>
+                      <Th
+                        align="right"
+                        sortable
+                        active={sortBy === 'sharpe'}
+                        order={sortOrder}
+                        onSort={() => toggleSort('sharpe')}
+                        title="Risk-adjusted return; values under 0.5 are treated as noise and left uncoloured"
+                      >
+                        Sharpe
+                      </Th>
+                      <Th
+                        align="right"
+                        title="Maximum peak-to-trough equity decline over the trader's history"
+                      >
+                        Max DD
+                      </Th>
+                      <Th width={96} align="right" srOnly="Trader details" />
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {traders.map((trader) => {
+                      const active = isRecentlyActive(trader.lastTradeAt);
+                      const pnl = pnlForTimeframe(trader, timeframe);
+                      const sharpe = toNumberOrNull(trader.sharpeRatio);
+                      const drawdown = drawdownValue(toNumberOrNull(trader.maxDrawdown));
+                      return (
+                        <tr key={trader.address}>
+                          <Td align="right" className="sticky-col min-w-14 text-fg-quaternary">
+                            {formatNumber(trader.rank)}
+                          </Td>
+                          <Td className="sticky-col left-14!">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  'status-dot',
+                                  active ? 'status-dot-live' : 'status-dot-idle',
+                                )}
+                                aria-hidden="true"
+                              />
+                              <span className="sr-only">
+                                {active ? 'Active in the last 7 days' : 'No trades in 7 days'}
+                              </span>
+                              <Link
+                                to="/traders/$address"
+                                params={{ address: trader.address }}
+                                aria-label={`Open trader ${trader.address}`}
+                                className="-my-1.5 inline-flex min-h-7 items-center py-1.5 text-fg-secondary transition-colors hover:text-fg-accent"
+                              >
+                                <AddressText address={trader.address} showCopy={false} />
+                              </Link>
+                            </div>
+                          </Td>
+                          <Td align="right">{formatUsd(toNumber(trader.equityUsd))}</Td>
+                          <Td
+                            align="right"
+                            className={cn('font-medium', TONE_TEXT_CLASS[pnlTone(pnl)])}
+                          >
+                            {pnl === null ? EM_DASH : formatPnL(pnl)}
+                          </Td>
+                          <Td align="right">{formatPercent(toNumberOrNull(trader.winrate))}</Td>
+                          <Td align="right" className="text-fg-tertiary">
+                            {formatNumber(toNumber(trader.totalTrades))}
+                          </Td>
+                          <Td align="right" className={TONE_TEXT_CLASS[sharpeTone(sharpe)]}>
+                            {sharpe === null ? EM_DASH : formatNumber(sharpe, 2)}
+                          </Td>
+                          <Td align="right" className={TONE_TEXT_CLASS[drawdownTone(drawdown)]}>
+                            {formatPercent(drawdown)}
+                          </Td>
+                          <Td align="right">
+                            <Link
+                              to="/traders/$address"
+                              params={{ address: trader.address }}
+                              aria-label={`View details for ${trader.address}`}
+                              className={cn(
+                                buttonVariants({ variant: 'ghost', size: 'sm' }),
+                                'min-w-11 text-fg-accent hover:text-fg-accent',
+                              )}
+                            >
+                              Details
+                            </Link>
+                          </Td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </TableWrap>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2">
+              <span className="text-2xs text-fg-quaternary">{showingLabel}</span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={offset === 0}
+                  onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasNextPage}
+                  onClick={() => setOffset(offset + PAGE_SIZE)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </>
         )}
-      </div>
+      </Panel>
 
-      {/* Live market tape */}
       <LiveMarketTape />
     </div>
   );
 }
 
-function SortHeader({
-  label,
-  active,
-  order,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  order: SortOrder;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 ${active ? 'text-[hsl(var(--fg-accent))]' : ''}`}
-    >
-      {label}
-      <ArrowUpDown className="h-3 w-3" strokeWidth={1.8} />
-      {active && <span className="text-[9px]">{order === 'asc' ? '↑' : '↓'}</span>}
-    </button>
-  );
-}
-
-function shorten(address: string): string {
-  return shortenAddress(address).replace('...', '…');
-}
-
 /**
- * Live trade tape across the major feed coins — a real-time window into the
- * market while browsing leaderboards (api-gateway feed; degrades silently).
+ * PnL for the selected window. `null` means "not reported" and renders as an
+ * em dash, so a missing column never masquerades as a real `$0`.
  */
-interface TapeTrade {
-  id: number;
-  coin: string;
-  side: string;
-  px: string;
-  sz: string;
-  time: number;
-}
-
-function LiveMarketTape() {
-  const [trades, setTrades] = useState<TapeTrade[]>([]);
-  const [connected, setConnected] = useState(false);
-
-  useEffect(() => {
-    const client = getFeedClient();
-    const channels = FEED_COINS.map((c) => `trades:${c}`);
-    let nextId = 0;
-    const nextTradeId = (): number => {
-      nextId += 1;
-      return nextId;
-    };
-    const withIds = (list: Array<Omit<TapeTrade, 'id'>>): TapeTrade[] =>
-      list.map((t) => ({ ...t, id: nextTradeId() }));
-    client.subscribe(channels);
-    const off = client.on((message) => {
-      if (message.type === 'data' && message.channel === 'trades') {
-        const list = message.data as Array<Omit<TapeTrade, 'id'>>;
-        setTrades((prev) => [...withIds(list.slice(-8).reverse()), ...prev].slice(0, 60));
-        setConnected(true);
-      }
-    });
-    void client.fetchState();
-    const poll = setInterval(() => setConnected(client.isConnected), 5000);
-    return () => {
-      off();
-      client.unsubscribe(channels);
-      clearInterval(poll);
-    };
-  }, []);
-
-  if (trades.length === 0) return null;
-
-  return (
-    <div className="panel mt-4 overflow-hidden">
-      <div className="panel-header flex items-center justify-between px-3 py-2 text-[10.5px] uppercase tracking-[0.08em] text-fg-tertiary">
-        <span>Live market tape</span>
-        <span className={connected ? 'text-success' : 'text-warning'}>
-          {connected ? '● feed live' : '○ reconnecting'}
-        </span>
-      </div>
-      <div className="dock-scroll flex gap-5 overflow-x-auto px-3 py-2">
-        {trades.map((t) => (
-          <div key={t.id} className="flex items-center gap-2 whitespace-nowrap font-mono text-xs">
-            <span className="font-semibold opacity-80">{t.coin}</span>
-            <span className={t.side === 'A' ? 'text-success' : 'text-destructive'}>
-              {formatNumber(parseFloat(t.px))}
-            </span>
-            <span className="opacity-60">{formatNumber(parseFloat(t.sz))}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+function pnlForTimeframe(trader: Trader, timeframe: Timeframe): number | null {
+  if (timeframe === '30d') return toNumberOrNull(trader.pnl30d);
+  if (timeframe === 'all') return toNumberOrNull(trader.pnlAll) ?? toNumberOrNull(trader.pnl30d);
+  return toNumberOrNull(trader.pnl7d);
 }
