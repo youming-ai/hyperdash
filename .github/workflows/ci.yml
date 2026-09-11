@@ -122,6 +122,13 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    # `upload-sarif` publishes to the code-scanning API, which requires
+    # `security-events: write`. Without an explicit grant the job inherited the
+    # repository default (read-only) and failed at the upload step with
+    # "Resource not accessible by integration" — the scan itself had succeeded.
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
