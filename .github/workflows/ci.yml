@@ -3,8 +3,10 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [ main, develop ]
+  # No `branches` filter here on purpose. A stacked PR targets another feature
+  # branch, and requiring a `main` base meant every PR in a stack silently ran
+  # no lint / test / build at all. The `push` trigger above stays scoped.
   pull_request:
-    branches: [ main ]
 
 env:
   GO_VERSION: '1.21'
