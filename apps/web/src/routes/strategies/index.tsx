@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
@@ -12,6 +12,7 @@ import { Panel, PanelBody } from '~/components/ui/panel';
 import { Segmented } from '~/components/ui/segmented';
 import { StatCard, StatGrid } from '~/components/ui/stat-card';
 import { ErrorNotice, PanelState, SkeletonBlock } from '~/components/ui/state';
+import { useStrategyStatusMutation } from '~/hooks/useStrategyStatusMutation';
 import { ApiError, api, readJson } from '~/lib/api-client';
 import { cn, formatPercent, formatPnL, formatUsdFull, toNumber } from '~/lib/utils';
 
@@ -86,11 +87,6 @@ const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
   { value: 'terminated', label: 'Terminated' },
 ];
 
-interface StatusChange {
-  id: string;
-  status: 'active' | 'paused';
-}
-
 /**
  * Pause / Resume against PATCH /strategies/:id.
  *
@@ -99,41 +95,6 @@ interface StatusChange {
  * rejects it — a dead button, or one that lies about the outcome, is worse than
  * no button.
  */
-function useStrategyStatusMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, status }: StatusChange) => {
-      const res = await api.strategies[':id'].$patch({ param: { id }, json: { status } });
-      return readJson<{ success: boolean }>(res, 'Update strategy');
-    },
-    onMutate: async ({ id, status }) => {
-      await queryClient.cancelQueries({ queryKey: ['strategies'] });
-      await queryClient.cancelQueries({ queryKey: ['strategy', id] });
-      const lists = queryClient.getQueriesData<StrategyListResponse>({ queryKey: ['strategies'] });
-      const detail = queryClient.getQueryData<StrategyListItem>(['strategy', id]);
-
-      queryClient.setQueriesData<StrategyListResponse>({ queryKey: ['strategies'] }, (old) =>
-        old
-          ? { ...old, strategies: old.strategies.map((s) => (s.id === id ? { ...s, status } : s)) }
-          : old,
-      );
-      if (detail)
-        queryClient.setQueryData<StrategyListItem>(['strategy', id], { ...detail, status });
-
-      return { lists, detail };
-    },
-    onError: (_error, variables, context) => {
-      for (const [key, snapshot] of context?.lists ?? []) queryClient.setQueryData(key, snapshot);
-      if (context?.detail) queryClient.setQueryData(['strategy', variables.id], context.detail);
-    },
-    onSettled: (_data, _error, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ['strategies'] });
-      void queryClient.invalidateQueries({ queryKey: ['strategy', variables.id] });
-    },
-  });
-}
-
 /**
  * One copied trader. The wallet address — not the internal DB id — is the
  * identity a user can recognise, verify and follow through to the trader page.

@@ -4,7 +4,11 @@ import { cn } from '~/lib/utils';
 
 export type Tone = 'neutral' | 'up' | 'down' | 'accent';
 
-const TONE_CLASS: Record<Tone, string> = {
+/**
+ * Tone → text colour. Exported so table cells can colour a value by the same
+ * tone a `StatCard` would use, instead of mapping it a second time.
+ */
+export const TONE_TEXT_CLASS: Record<Tone, string> = {
   neutral: 'text-foreground',
   up: 'text-up',
   down: 'text-down',
@@ -36,7 +40,7 @@ export function StatCard({
         {icon ? <span className="text-fg-quaternary [&_svg]:size-3.5">{icon}</span> : null}
         <span className="panel-title truncate">{label}</span>
       </div>
-      <div className={cn('num mt-2 text-xl leading-none', TONE_CLASS[tone])}>{value}</div>
+      <div className={cn('num mt-2 text-xl leading-none', TONE_TEXT_CLASS[tone])}>{value}</div>
       {hint ? <div className="mt-1.5 truncate text-2xs text-fg-quaternary">{hint}</div> : null}
     </div>
   );

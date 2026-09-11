@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { type ReactNode, useMemo } from 'react';
 import { type StrategyStatus, StrategyStatusBadge } from '~/components/StrategyStatusBadge';
@@ -9,6 +9,10 @@ import { PageHeader } from '~/components/ui/page-header';
 import { Panel, PanelBody, PanelHeader } from '~/components/ui/panel';
 import { StatCard, StatGrid } from '~/components/ui/stat-card';
 import { ErrorNotice, PanelState, SkeletonBlock } from '~/components/ui/state';
+import {
+  type StrategyStatusAction,
+  useStrategyStatusMutation,
+} from '~/hooks/useStrategyStatusMutation';
 import { ApiError, api, readJson } from '~/lib/api-client';
 import { cn, formatDateTime, formatPercent, formatPnL, formatUsdFull, toNumber } from '~/lib/utils';
 
@@ -58,47 +62,6 @@ interface StrategyDetail {
   updatedAt: string;
 }
 
-interface StrategyListResponse {
-  strategies: Array<StrategyDetail>;
-}
-
-type StatusValue = 'active' | 'paused';
-
-/** Pause / Resume against PATCH /strategies/:id, applied optimistically. */
-function useStrategyStatusMutation(id: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (status: StatusValue) => {
-      const res = await api.strategies[':id'].$patch({ param: { id }, json: { status } });
-      return readJson<{ success: boolean }>(res, 'Update strategy');
-    },
-    onMutate: async (status) => {
-      await queryClient.cancelQueries({ queryKey: ['strategy', id] });
-      await queryClient.cancelQueries({ queryKey: ['strategies'] });
-      const detail = queryClient.getQueryData<StrategyDetail>(['strategy', id]);
-      const lists = queryClient.getQueriesData<StrategyListResponse>({ queryKey: ['strategies'] });
-
-      if (detail) queryClient.setQueryData<StrategyDetail>(['strategy', id], { ...detail, status });
-      queryClient.setQueriesData<StrategyListResponse>({ queryKey: ['strategies'] }, (old) =>
-        old
-          ? { ...old, strategies: old.strategies.map((s) => (s.id === id ? { ...s, status } : s)) }
-          : old,
-      );
-
-      return { detail, lists };
-    },
-    onError: (_error, _status, context) => {
-      if (context?.detail) queryClient.setQueryData(['strategy', id], context.detail);
-      for (const [key, snapshot] of context?.lists ?? []) queryClient.setQueryData(key, snapshot);
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['strategy', id] });
-      void queryClient.invalidateQueries({ queryKey: ['strategies'] });
-    },
-  });
-}
-
 /** One row of the settings description list. Values arrive pre-formatted. */
 function SettingRow({ label, value }: { label: ReactNode; value: ReactNode }) {
   return (
@@ -126,10 +89,10 @@ function StrategyDetailPage() {
     },
   });
 
-  const statusMutation = useStrategyStatusMutation(id);
+  const statusMutation = useStrategyStatusMutation();
   const statusVariable = statusMutation.isError ? statusMutation.variables : undefined;
 
-  const nextStatus: StatusValue | null =
+  const nextStatus: StrategyStatusAction | null =
     strategy?.status === 'active'
       ? 'paused'
       : strategy === undefined || strategy.status === 'terminated'
@@ -248,7 +211,7 @@ function StrategyDetailPage() {
                 size="sm"
                 variant="subtle"
                 disabled={statusMutation.isPending}
-                onClick={() => statusMutation.mutate(nextStatus)}
+                onClick={() => statusMutation.mutate({ id, status: nextStatus })}
                 className={cn(
                   nextStatus === 'paused'
                     ? 'bg-warning text-warning-foreground hover:bg-warning/90'

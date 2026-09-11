@@ -3,11 +3,13 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 import { LiveMarketTape } from '~/components/LiveMarketTape';
+import { drawdownTone, drawdownValue, pnlTone, sharpeTone } from '~/components/trader-metrics';
 import { AddressText } from '~/components/ui/address';
 import { Button, buttonVariants } from '~/components/ui/button';
 import { PageHeader } from '~/components/ui/page-header';
 import { Panel, PanelHeader } from '~/components/ui/panel';
 import { Segmented, type SegmentedItem } from '~/components/ui/segmented';
+import { TONE_TEXT_CLASS } from '~/components/ui/stat-card';
 import { PanelState } from '~/components/ui/state';
 import { type SortOrder, TableWrap, Td, Th } from '~/components/ui/table';
 import { api, readJson } from '~/lib/api-client';
@@ -55,34 +57,11 @@ const TIMEFRAME_TABS_ID = 'leaderboard-timeframe';
 /** `#` column width; the pinned trader column starts exactly after it. */
 const RANK_COLUMN_WIDTH = 56;
 /** Below this magnitude a Sharpe ratio is noise, so it stays uncoloured. */
-const SHARPE_NEUTRAL_BAND = 0.5;
-
 const TIMEFRAMES: ReadonlyArray<SegmentedItem<Timeframe>> = [
   { value: '7d', label: '7D' },
   { value: '30d', label: '30D' },
   { value: 'all', label: 'All time' },
 ];
-
-/** Direction tone for a PnL value. Missing and exactly-zero values stay neutral. */
-function pnlTone(value: number | null): string {
-  if (value === null || value === 0) return '';
-  return value > 0 ? 'text-up' : 'text-down';
-}
-
-/** Sharpe is only coloured when it is meaningfully away from zero. */
-function sharpeTone(value: number | null): string {
-  if (value === null || Math.abs(value) < SHARPE_NEUTRAL_BAND) return '';
-  return value > 0 ? 'text-up' : 'text-down';
-}
-
-/**
- * Drawdown is a decline, so it is rendered negative — but a true zero stays
- * `0.0%` instead of the `-0.0%` that `-Math.abs(0)` would print.
- */
-function drawdownValue(value: number | null): number | null {
-  if (value === null) return null;
-  return value === 0 ? 0 : -Math.abs(value);
-}
 
 function TradersPage() {
   const [timeframe, setTimeframe] = useState<Timeframe>('7d');
@@ -307,20 +286,20 @@ function TradersPage() {
                             </div>
                           </Td>
                           <Td align="right">{formatUsd(toNumber(trader.equityUsd))}</Td>
-                          <Td align="right" className={cn('font-medium', pnlTone(pnl))}>
+                          <Td
+                            align="right"
+                            className={cn('font-medium', TONE_TEXT_CLASS[pnlTone(pnl)])}
+                          >
                             {pnl === null ? EM_DASH : formatPnL(pnl)}
                           </Td>
                           <Td align="right">{formatPercent(toNumberOrNull(trader.winrate))}</Td>
                           <Td align="right" className="text-fg-tertiary">
                             {formatNumber(toNumber(trader.totalTrades))}
                           </Td>
-                          <Td align="right" className={cn(sharpeTone(sharpe))}>
+                          <Td align="right" className={TONE_TEXT_CLASS[sharpeTone(sharpe)]}>
                             {sharpe === null ? EM_DASH : formatNumber(sharpe, 2)}
                           </Td>
-                          <Td
-                            align="right"
-                            className={cn(drawdown !== null && drawdown < 0 && 'text-down')}
-                          >
+                          <Td align="right" className={TONE_TEXT_CLASS[drawdownTone(drawdown)]}>
                             {formatPercent(drawdown)}
                           </Td>
                           <Td align="right">

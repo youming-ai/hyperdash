@@ -12,12 +12,13 @@ import {
 import { type ReactNode, useMemo, useState } from 'react';
 import { z } from 'zod';
 
+import { drawdownTone, drawdownValue, pnlTone, sharpeTone } from '~/components/trader-metrics';
 import { AddressText } from '~/components/ui/address';
 import { Badge } from '~/components/ui/badge';
 import { buttonVariants } from '~/components/ui/button';
 import { PageHeader } from '~/components/ui/page-header';
 import { Panel, PanelBody, PanelHeader } from '~/components/ui/panel';
-import { StatCard, StatGrid, type Tone } from '~/components/ui/stat-card';
+import { StatCard, StatGrid, TONE_TEXT_CLASS, type Tone } from '~/components/ui/stat-card';
 import { ErrorNotice, PanelState, SkeletonBlock, SkeletonRows } from '~/components/ui/state';
 import { type SortOrder, TableWrap, Td, Th } from '~/components/ui/table';
 import { ApiError, api, readJson } from '~/lib/api-client';
@@ -57,8 +58,6 @@ export const Route = createFileRoute('/traders/$address')({
  *  panel states how many of the trader's total closed trades are on screen. */
 const TRADES_LIMIT = 25;
 const HYPERLIQUID_EXPLORER = 'https://app.hyperliquid.xyz/explorer/address';
-/** Below this magnitude a Sharpe ratio is noise, so it stays uncoloured. */
-const SHARPE_NEUTRAL_BAND = 0.5;
 /** Named activity thresholds — no magic numbers buried in a ternary chain. */
 const ACTIVITY_LEVELS = { veryHigh: 1000, high: 500 } as const;
 /** Stable keys for the eight stat placeholders in the loading skeleton. */
@@ -72,13 +71,6 @@ const SKELETON_STAT_KEYS = [
   'trades',
   'position-size',
 ] as const;
-
-const TONE_TEXT_CLASS: Record<Tone, string> = {
-  neutral: '',
-  up: 'text-up',
-  down: 'text-down',
-  accent: 'text-fg-accent',
-};
 
 // ---------------------------------------------------------------------------
 // Response shapes (the API returns DB numerics as strings)
@@ -205,24 +197,6 @@ interface PositionSort {
 // ---------------------------------------------------------------------------
 // Derivations
 // ---------------------------------------------------------------------------
-
-/** Direction tone for a PnL value. Missing and exactly-zero values stay neutral. */
-function pnlTone(value: number | null): Tone {
-  if (value === null || value === 0) return 'neutral';
-  return value > 0 ? 'up' : 'down';
-}
-
-/** Sharpe is only coloured when it is meaningfully away from zero. */
-function sharpeTone(value: number | null): Tone {
-  if (value === null || Math.abs(value) < SHARPE_NEUTRAL_BAND) return 'neutral';
-  return value > 0 ? 'up' : 'down';
-}
-
-/** Drawdown is a decline, so it renders negative; a true zero stays `0.0%`. */
-function drawdownValue(value: number | null): number | null {
-  if (value === null) return null;
-  return value === 0 ? 0 : -Math.abs(value);
-}
 
 /** Activity band from the closed-trade count; no trades means no level. */
 function activityLevel(totalTrades: number): string {
@@ -371,7 +345,7 @@ function TraderDetailPage() {
         label: 'Max drawdown',
         value: formatPercent(drawdown),
         hint: 'Peak-to-trough equity decline',
-        tone: drawdown !== null && drawdown < 0 ? 'down' : 'neutral',
+        tone: drawdownTone(drawdown),
         icon: <AlertTriangle aria-hidden="true" />,
       },
       { label: 'Total trades', value: formatNumber(trader.totalTrades) },
