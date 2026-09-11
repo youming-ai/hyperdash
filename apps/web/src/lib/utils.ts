@@ -15,8 +15,8 @@ export const EM_DASH = '—';
  */
 export type NumericLike = string | number | null | undefined;
 
-/** A trader is "active" when they traded inside this window. */
-export const RECENT_ACTIVITY_MS = 7 * 24 * 60 * 60 * 1000;
+/** A trader counts as active when they traded inside this window. */
+const RECENT_ACTIVITY_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Coerce a DB numeric (string | number | null) to a number, else null. */
 export function toNumberOrNull(value: NumericLike): number | null {

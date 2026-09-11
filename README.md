@@ -131,6 +131,11 @@ packages/
   contracts/     # Legacy tRPC (api-gateway only)
 ```
 
+## Docs
+
+- [`docs/ui-audit.md`](docs/ui-audit.md) — web UI review: method, measured
+  evidence, what changed, and the remaining data-quality caveats.
+
 ## Environment
 
 Web secrets are Worker bindings (`wrangler.toml` + `wrangler secret put`); see

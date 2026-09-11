@@ -17,7 +17,7 @@ export interface HeatmapSeries {
 }
 
 /** How a value maps onto colour: signed around zero, or a one-sided ramp. */
-export type HeatmapScale = 'diverging' | 'ramp';
+type HeatmapScale = 'diverging' | 'ramp';
 
 /**
  * Query lifecycle a caller hands down. Without it a pending or failed request
