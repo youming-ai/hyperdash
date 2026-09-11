@@ -11,7 +11,7 @@ import type { FeedBook, FeedCandle, FeedCtx, FeedState, FeedTrade } from '@hyper
  * feed's REST history endpoints live on the same host (http://…/feed/…).
  */
 
-export const FEED_WS_URL: string = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3000/ws';
+export const FEED_WS_URL: string = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3001/ws';
 
 /** Coins with static feed coverage (ctx + trades) on the api-gateway. */
 export const FEED_COINS: string[] = [

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -351,8 +352,13 @@ func (e *Engine) calculatePositionDeltas(current, target map[string]float64) map
 }
 
 func (e *Engine) executePositionDeltas(strategy *Strategy, deltas map[string]float64) error {
-	// TODO: Implement position delta execution with risk management
-	return nil
+  if len(deltas) == 0 {
+    return nil
+  }
+  if err := e.riskManager.ValidateStrategy(strategy); err != nil {
+    return err
+  }
+  return e.exchangeAdapter.ExecuteBatch(strategy.ID, deltas)
 }
 
 func (e *Engine) calculateAlignmentRate(current, target map[string]float64) float64 {
@@ -407,7 +413,15 @@ func (e *Engine) updateMetrics(latency time.Duration) {
 func (e *Engine) GetMetrics() Metrics {
 	e.metrics.mutex.RLock()
 	defer e.metrics.mutex.RUnlock()
-	return *e.metrics
+	return Metrics{
+		TotalStrategies:      e.metrics.TotalStrategies,
+		ActiveStrategies:     e.metrics.ActiveStrategies,
+		TotalPositions:       e.metrics.TotalPositions,
+		SuccessfulExecutions: e.metrics.SuccessfulExecutions,
+		FailedExecutions:     e.metrics.FailedExecutions,
+		AverageLatency:       e.metrics.AverageLatency,
+		AlignmentRate:        e.metrics.AlignmentRate,
+	}
 }
 
 func (e *Engine) GetStrategy(strategyID string) (*Strategy, error) {

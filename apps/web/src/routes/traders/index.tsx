@@ -4,7 +4,7 @@ import { ArrowUpDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '~/lib/api-client';
 import { FEED_COINS, getFeedClient } from '~/lib/feed-client';
-import { formatCompactNumber, formatNumber, formatPnL } from '~/lib/utils';
+import { formatCompactNumber, formatNumber, formatPnL, shortenAddress } from '~/lib/utils';
 
 export const Route = createFileRoute('/traders/')({
   component: TradersPage,
@@ -259,7 +259,7 @@ function SortHeader({
 }
 
 function shorten(address: string): string {
-  return address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
+  return shortenAddress(address).replace('...', '…');
 }
 
 /**

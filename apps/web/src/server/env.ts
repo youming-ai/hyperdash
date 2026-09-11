@@ -18,4 +18,6 @@ export interface WorkerEnv {
   HYPERLIQUID_API_URL: string;
   OPENAI_API_KEY?: string;
   LOG_LEVEL?: string;
+  // FE/BE split
+  BE_URL?: string;
 }

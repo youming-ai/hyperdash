@@ -61,3 +61,10 @@ export function formatUsd(value: number): string {
 export function formatTimeHms(ts: number): string {
   return new Date(ts).toISOString().slice(11, 19);
 }
+
+/** Coerce DB numeric (string | number | null) to number with safe fallback. */
+export function toNumber(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}

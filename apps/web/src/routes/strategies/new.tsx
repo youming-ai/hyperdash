@@ -196,8 +196,10 @@ function NewStrategyPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Info */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Basic Information</h2>
+        <div className="panel p-5">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+            Basic Information
+          </h2>
 
           <div className="space-y-4">
             <div>
@@ -257,9 +259,9 @@ function NewStrategyPage() {
         </div>
 
         {/* Trader Allocations */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
+        <div className="panel p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary">
               Trader Allocations{' '}
               <span className="text-sm font-normal opacity-60">
                 ({Math.round(totalAllocationWeight * 100)}% assigned)
@@ -376,8 +378,10 @@ function NewStrategyPage() {
         </div>
 
         {/* Risk Parameters */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Risk Parameters</h2>
+        <div className="panel p-5">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+            Risk Parameters
+          </h2>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -483,8 +487,10 @@ function NewStrategyPage() {
         </div>
 
         {/* Copy Settings */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Copy Settings</h2>
+        <div className="panel p-5">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+            Copy Settings
+          </h2>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">

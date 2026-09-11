@@ -13,6 +13,7 @@ import (
 	"github.com/hyperdash/copy-engine/internal/config"
 	"github.com/hyperdash/copy-engine/internal/engine"
 	"github.com/hyperdash/copy-engine/internal/exchange"
+	"github.com/hyperdash/copy-engine/internal/queue"
 	"github.com/hyperdash/copy-engine/internal/risk"
 	"github.com/hyperdash/copy-engine/internal/server"
 	"github.com/joho/godotenv"
@@ -33,7 +34,7 @@ func main() {
 	// Initialize dependencies
 	exchangeAdapter := exchange.NewHyperliquidAdapter(cfg.Hyperliquid)
 	riskManager := risk.NewManager(cfg.Risk)
-	copyEngine := engine.NewEngine(cfg.Engine, exchangeAdapter, riskManager)
+	copyEngine := engine.NewEngine(cfg, exchangeAdapter, riskManager)
 
 	// Start the engine
 	ctx, cancel := context.WithCancel(context.Background())
@@ -41,6 +42,25 @@ func main() {
 
 	if err := copyEngine.Start(ctx); err != nil {
 		log.Fatalf("Failed to start copy engine: %v", err)
+	}
+
+	// BE Queue consumer (Redis Streams / List) — execution plane
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		qc := queue.NewConsumer(redisURL, func(cCtx context.Context, sig queue.CopySignal) error {
+			log.Printf("queue: %s strategy=%s trader=%s", sig.Action, sig.StrategyID, sig.TraderID)
+			switch sig.Action {
+			case "create", "update":
+				return copyEngine.StartStrategy(&engine.Strategy{ID: sig.StrategyID})
+			case "delete":
+				return copyEngine.StopStrategy(sig.StrategyID)
+			default:
+				return nil
+			}
+		})
+		qc.Start(ctx)
+		defer qc.Stop()
+	} else {
+		log.Println("queue: REDIS_URL not set, queue consumer disabled")
 	}
 
 	// Setup HTTP server

@@ -11,6 +11,7 @@ import {
   copyStrategies,
   traderStats,
 } from '@hyperdash/database/schema';
+import { toNumber, validateAllocationWeights } from '@hyperdash/shared-types';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -135,38 +136,7 @@ const updateBody = z.object({
     .optional(),
 });
 
-function validateWeightRange(weight: number): void {
-  if (!(weight > 0 && weight <= 1)) {
-    throw new Error(`Allocation weight must be in (0, 1]; got ${weight}`);
-  }
-}
-
-function validateAllocationWeights(
-  mode: StrategyMode,
-  allocations: Array<{ weight: number }>,
-): void {
-  if (allocations.length === 0) {
-    throw new Error('Strategy must have at least one allocation');
-  }
-  for (const a of allocations) validateWeightRange(a.weight);
-
-  if (mode === 'single_trader') {
-    if (allocations.length !== 1) {
-      throw new Error(
-        `single_trader strategies must have exactly one allocation; got ${allocations.length}`,
-      );
-    }
-    if (Math.abs(allocations[0].weight - 1) > 0.0001) {
-      throw new Error(`single_trader allocation weight must be 1; got ${allocations[0].weight}`);
-    }
-    return;
-  }
-
-  const sum = allocations.reduce((acc, a) => acc + a.weight, 0);
-  if (Math.abs(sum - 1) > 0.0001) {
-    throw new Error(`Portfolio allocation weights must sum to 1; got ${sum.toFixed(4)}`);
-  }
-}
+// validateAllocationWeights imported from @hyperdash/shared-types (single source)
 
 async function hydrateStrategies(
   db: Db,
@@ -237,17 +207,17 @@ async function hydrateStrategies(
         return {
           id: allocation.id,
           traderId: allocation.traderId,
-          weight: Number(allocation.weight),
+          weight: toNumber(allocation.weight),
           status: allocation.status as AllocationStatus,
-          allocatedPnl: Number(allocation.allocatedPnl || 0),
-          allocatedFees: Number(allocation.allocatedFees || 0),
+          allocatedPnl: toNumber(allocation.allocatedPnl),
+          allocatedFees: toNumber(allocation.allocatedFees),
           trader: trader
             ? {
                 traderId: trader.traderId,
                 address: trader.address,
-                pnl7d: Number(trader.pnl7d || 0),
-                pnl30d: Number(trader.pnl30d || 0),
-                winrate: Number(trader.winrate || 0),
+                pnl7d: toNumber(trader.pnl7d),
+                pnl30d: toNumber(trader.pnl30d),
+                winrate: toNumber(trader.winrate),
                 totalTrades: trader.totalTrades || 0,
               }
             : null,
@@ -376,10 +346,10 @@ function formatStrategy(strategy: StrategyWithAllocations) {
     status: strategy.status,
     mode: strategy.mode,
     riskParams: {
-      maxLeverage: Number(strategy.maxLeverage || 5),
-      maxPositionUsd: strategy.maxPositionUsd ? Number(strategy.maxPositionUsd) : undefined,
+      maxLeverage: toNumber(strategy.maxLeverage) || 5,
+      maxPositionUsd: strategy.maxPositionUsd ? toNumber(strategy.maxPositionUsd) : undefined,
       slippageBps: strategy.slippageBps || 10,
-      minOrderUsd: Number(strategy.minOrderUsd || 100),
+      minOrderUsd: toNumber(strategy.minOrderUsd) || 100,
     },
     settings: {
       followNewEntriesOnly: strategy.followNewEntriesOnly || false,
@@ -387,9 +357,9 @@ function formatStrategy(strategy: StrategyWithAllocations) {
       rebalanceThresholdBps: strategy.rebalanceThresholdBps || 50,
     },
     performance: {
-      totalPnl: Number(strategy.totalPnl || 0),
-      totalFees: Number(strategy.totalFees || 0),
-      alignmentRate: Number(strategy.alignmentRate || 100),
+      totalPnl: toNumber(strategy.totalPnl),
+      totalFees: toNumber(strategy.totalFees),
+      alignmentRate: toNumber(strategy.alignmentRate) || 100,
       totalTrades: 0,
     },
     allocations: strategy.allocations.map((alloc) => ({
@@ -458,9 +428,9 @@ export const strategiesRouter = new Hono<AppEnv>()
           riskParams,
           settings,
           performance: {
-            totalPnl: Number(strategyWithAllocations.totalPnl || 0),
-            totalFees: Number(strategyWithAllocations.totalFees || 0),
-            alignmentRate: Number(strategyWithAllocations.alignmentRate || 100),
+            totalPnl: toNumber(strategyWithAllocations.totalPnl),
+            totalFees: toNumber(strategyWithAllocations.totalFees),
+            alignmentRate: toNumber(strategyWithAllocations.alignmentRate) || 100,
             totalTrades: 0,
           },
           allocations: allocations.map((alloc) => ({

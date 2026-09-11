@@ -1,6 +1,14 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/*.test.ts", "**/*.test.tsx", "node_modules", "dist", ".tanstack", ".wrangler"],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "vitest.config.ts",
+    "node_modules",
+    "dist",
+    ".tanstack",
+    ".wrangler"
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

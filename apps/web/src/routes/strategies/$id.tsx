@@ -50,7 +50,7 @@ function StrategyDetailPage() {
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold">{strategy.name}</h1>
             <StatusBadge status={strategy.status} />
-            <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-500">
+            <span className="badge badge-accent">
               {strategy.mode === 'portfolio' ? 'Portfolio' : 'Single'}
             </span>
           </div>
@@ -63,7 +63,6 @@ function StrategyDetailPage() {
         <div className="flex gap-2">
           <Link
             to="/strategies/new"
-            params={{ id }}
             className="px-4 py-2 rounded-lg border border-[hsl(var(--border))] text-sm font-medium hover:bg-[hsl(var(--accent))] transition-colors"
           >
             Edit Settings
@@ -107,8 +106,10 @@ function StrategyDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Allocations */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Trader Allocations</h2>
+        <div className="panel p-5">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+            Trader Allocations
+          </h2>
           <div className="space-y-4">
             {strategy.allocations.map((alloc) => (
               <div
@@ -146,8 +147,10 @@ function StrategyDetailPage() {
         </div>
 
         {/* Strategy Settings */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Strategy Settings</h2>
+        <div className="panel p-5">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+            Strategy Settings
+          </h2>
           <div className="space-y-3">
             <SettingRow
               label="Mode"
@@ -182,8 +185,10 @@ function StrategyDetailPage() {
       </div>
 
       {/* Performance Metrics */}
-      <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Performance Metrics</h2>
+      <div className="panel p-5 mb-6">
+        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+          Performance Metrics
+        </h2>
         <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
           <MetricCard label="Total Trades" value={strategy.performance.totalTrades} />
           <MetricCard label="Alignment Rate" value={`${strategy.performance.alignmentRate}%`} />
@@ -191,8 +196,10 @@ function StrategyDetailPage() {
       </div>
 
       {/* Recent Copied Trades */}
-      <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-        <h2 className="text-lg font-semibold mb-4">Recent Copied Trades</h2>
+      <div className="panel p-5">
+        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+          Recent Copied Trades
+        </h2>
         <div className="text-center py-8 opacity-60">No recent copied trades available.</div>
       </div>
     </div>
@@ -200,14 +207,13 @@ function StrategyDetailPage() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles = {
-    active: 'bg-[hsl(var(--success))]/20 text-green-500',
-    paused: 'bg-yellow-500/20 text-yellow-500',
-    error: 'bg-red-500/20 text-red-500',
-    terminated: 'bg-gray-500/20 text-gray-500',
+  const map: Record<string, string> = {
+    active: 'badge badge-up',
+    paused: 'badge badge-neutral',
+    error: 'badge badge-down',
+    terminated: 'badge badge-neutral',
   };
-  const style = styles[status.toLowerCase() as keyof typeof styles] || styles.paused;
-  return <span className={`px-2 py-0.5 text-xs rounded-full ${style}`}>{status}</span>;
+  return <span className={map[status.toLowerCase()] ?? 'badge badge-neutral'}>{status}</span>;
 }
 
 function StatCard({
@@ -220,9 +226,11 @@ function StatCard({
   positive?: boolean;
 }) {
   return (
-    <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg p-4">
-      <p className="text-sm opacity-60 mb-1">{label}</p>
-      <p className={`text-xl font-bold ${positive ? 'text-success' : ''}`}>{value}</p>
+    <div className="panel p-4">
+      <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-tertiary mb-1">
+        {label}
+      </p>
+      <p className={`num text-xl font-bold ${positive ? 'text-success' : ''}`}>{value}</p>
     </div>
   );
 }

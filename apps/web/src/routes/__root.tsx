@@ -2,8 +2,19 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
-import { Activity, BarChart3, Copy, LayoutDashboard, Moon, Sun, Users } from 'lucide-react';
+import {
+  Activity,
+  BarChart3,
+  Copy,
+  LayoutDashboard,
+  Menu,
+  Moon,
+  Sun,
+  Users,
+  X,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { AuthButton } from '~/components/AuthButton';
 import { Providers, useTheme } from '~/providers';
 import appCss from '~/styles.css?url';
@@ -54,23 +65,24 @@ function ThemeToggle() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="rail-item"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[hsl(var(--fg-tertiary))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
       title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
       aria-label="Toggle theme"
     >
       {theme === 'light' ? (
-        <Moon className="h-[16px] w-[16px]" strokeWidth={1.8} />
+        <Moon className="h-4 w-4" strokeWidth={1.8} />
       ) : (
-        <Sun className="h-[16px] w-[16px]" strokeWidth={1.8} />
+        <Sun className="h-4 w-4" strokeWidth={1.8} />
       )}
     </button>
   );
 }
 
 function RootComponent() {
+  const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <div className="min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
-      {/* Left icon rail */}
+      {/* Left icon rail — desktop */}
       <aside className="app-rail">
         <Link to="/" className="rail-item" title="HyperDash" activeProps={{}}>
           <span className="font-mono text-[15px] font-bold text-[hsl(var(--primary))]">H</span>
@@ -87,12 +99,21 @@ function RootComponent() {
       {/* Content column */}
       <div className="md:pl-14">
         <header className="app-topbar">
-          <div className="flex h-[52px] items-center justify-between px-4 sm:px-6">
-            <div className="flex items-center gap-3">
-              <span className="text-[15px] font-semibold tracking-tight">HyperDash</span>
-              <span className="badge badge-accent hidden sm:inline-flex">HYPERLIQUID</span>
+          <div className="flex h-[52px] items-center justify-between gap-2 px-3 sm:px-6">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setMobileOpen((v) => !v)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[hsl(var(--muted))] md:hidden"
+                aria-label="Toggle navigation"
+                aria-expanded={mobileOpen}
+              >
+                {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </button>
+              <span className="shrink-0 text-[15px] font-semibold tracking-tight">HyperDash</span>
+              <span className="badge badge-accent hidden shrink-0 sm:inline-flex">HYPERLIQUID</span>
             </div>
-            <nav className="hidden items-center gap-1 md:flex">
+            <nav className="hidden shrink-0 items-center gap-1 md:flex">
               {NAV.map((item) => (
                 <Link
                   key={item.to}
@@ -104,12 +125,41 @@ function RootComponent() {
                 </Link>
               ))}
             </nav>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
               <ThemeToggle />
-              <ConnectButton showBalance={false} accountStatus="address" chainStatus="icon" />
-              <AuthButton />
+              <span className="hidden shrink-0 sm:inline-flex max-w-[160px]">
+                <ConnectButton showBalance={false} accountStatus="address" chainStatus="none" />
+              </span>
+              <span className="inline-flex shrink-0 sm:hidden">
+                <ConnectButton showBalance={false} accountStatus="avatar" chainStatus="none" />
+              </span>
+              <span className="shrink-0">
+                <AuthButton />
+              </span>
             </div>
           </div>
+          {/* Mobile drawer */}
+          {mobileOpen && (
+            <nav className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 py-2 md:hidden">
+              <div className="flex flex-col gap-1">
+                {NAV.map((item) => (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-[hsl(var(--muted))]"
+                    activeProps={{
+                      className:
+                        'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium bg-[hsl(var(--muted))] text-[hsl(var(--primary))]',
+                    }}
+                  >
+                    <item.icon className="h-4 w-4" strokeWidth={1.8} />
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </nav>
+          )}
         </header>
 
         <main className="animate-fade-in">
