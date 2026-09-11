@@ -8,6 +8,9 @@
     "dev:web": "turbo run dev --filter=web",
     "dev:api": "turbo run dev --filter=api",
     "dev:ingest": "turbo run dev --filter=@hyperdash/ingest",
+    "dev:copier": "turbo run dev --filter=@hyperdash/copier",
+    "seed:copier": "turbo run seed --filter=@hyperdash/copier",
+    "check:copier": "turbo run check --filter=@hyperdash/copier",
     "dev:all": "concurrently \"turbo run dev --filter=api\" \"turbo run dev --filter=web\" \"turbo run dev --filter=@hyperdash/ingest\"",
     "build": "turbo run build",
     "start": "turbo run start",
@@ -27,7 +30,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
-    "@types/node": "^22.20.1",
+    "@types/node": "^22.20.2",
     "concurrently": "^9.2.4",
     "lefthook": "^1.13.6",
     "turbo": "^2.10.12",

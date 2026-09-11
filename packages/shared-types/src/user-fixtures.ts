@@ -1,4 +1,9 @@
-// ponytail: dev fixtures until wallets/alerts/notifications tables ship — delete when DB lands, keep router <250 lines
+import type { z } from 'zod';
+import { AgentWallet, Notification, PriceAlert, UserStatistics, UserTrade } from './index';
+
+// Dev fixtures until wallets/alerts/notifications tables ship — delete when DB
+// lands. Single source for apps/api + apps/web so the two routers stay in sync.
+
 export function mockWallets(userId: string) {
   return [
     {
@@ -113,13 +118,13 @@ export function mockTradingHistory(
     id: `trade_${offset + i + 1}`,
     userId,
     symbol: symbol ?? (['BTC-PERP', 'ETH-PERP', 'SOL-PERP'] as const)[i % 3],
-    side: Math.random() > 0.5 ? 'buy' : 'sell',
-    size: (Math.random() * 5 + 0.1).toFixed(2),
-    price: Math.random() * 50000 + 1000,
-    fee: Math.random() * 50,
-    realizedPnl: (Math.random() - 0.3) * 2000,
-    isCopyTrade: Math.random() > 0.5,
-    strategyId: strategyId ?? `strategy_${Math.floor(Math.random() * 3) + 1}`,
+    side: i % 2 === 0 ? 'buy' : 'sell',
+    size: ((i * 37) % 50) / 10 + 0.1,
+    price: ((i * 7919) % 50000) + 1000,
+    fee: ((i * 13) % 50) + 1,
+    realizedPnl: ((i * 977) % 4000) - 1200,
+    isCopyTrade: i % 2 === 0,
+    strategyId: strategyId ?? `strategy_${(i % 3) + 1}`,
     timestamp: new Date(Date.now() - (offset + i) * 3600000).toISOString(),
   }));
 }
@@ -159,4 +164,45 @@ export function mockStatistics(timeframe: string) {
     },
     engagement: { loginDays: 25, avgSessionTime: 45, alertsCreated: 8, notificationsRead: 85 },
   };
+}
+
+/**
+ * Fixture types, derived from the schemas rather than from `ReturnType` of the
+ * mock factories: the schema is the contract these fixtures must satisfy, so
+ * inferring from it keeps the two from drifting. `parseMock*` below enforces
+ * that at runtime.
+ */
+export type MockWallet = z.infer<typeof AgentWallet>;
+export type MockAlert = z.infer<typeof PriceAlert>;
+export type MockNotification = z.infer<typeof Notification>;
+export type MockTrade = z.infer<typeof UserTrade>;
+export type MockStatistics = z.infer<typeof UserStatistics>;
+
+type ParsedWallet = MockWallet;
+type ParsedAlert = MockAlert;
+type ParsedNotification = MockNotification;
+type ParsedTrade = MockTrade;
+type ParsedStatistics = MockStatistics;
+
+export function parseMockWallets(userId: string): ParsedWallet[] {
+  return mockWallets(userId).map((wallet) => AgentWallet.parse(wallet));
+}
+
+export function parseMockAlerts(userId: string): ParsedAlert[] {
+  return mockAlerts(userId).map((alert) => PriceAlert.parse(alert));
+}
+
+export function parseMockNotifications(userId: string): ParsedNotification[] {
+  return mockNotifications(userId).map((notif) => Notification.parse(notif));
+}
+
+export function parseMockTradingHistory(
+  userId: string,
+  opts: { limit: number; offset: number; symbol?: string; strategyId?: string },
+): ParsedTrade[] {
+  return mockTradingHistory(userId, opts).map((trade) => UserTrade.parse(trade));
+}
+
+export function parseMockStatistics(timeframe: string): ParsedStatistics {
+  return UserStatistics.parse(mockStatistics(timeframe));
 }

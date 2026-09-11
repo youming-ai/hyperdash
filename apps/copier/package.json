@@ -1,0 +1,29 @@
+{
+  "name": "@hyperdash/copier",
+  "version": "1.0.0",
+  "description": "Hyperliquid copy-trading execution plane — event-driven reconcile toward target state",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
+    "start": "bun --env-file=../../.env src/index.ts",
+    "seed": "bun --env-file=../../.env src/cli/seed-strategy.ts",
+    "check": "bun --env-file=../../.env src/cli/check.ts",
+    "compare": "bun --env-file=../../.env src/cli/compare-oscillation.ts",
+    "test": "bun test src/",
+    "provision-agent": "bun --env-file=../../.env src/cli/provision-agent.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hyperdash/database": "workspace:*",
+    "@hyperdash/shared-types": "workspace:*",
+    "@nktkas/hyperliquid": "^0.33.3",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
+  }
+}

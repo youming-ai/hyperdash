@@ -1,5 +1,5 @@
+import { describe, expect, test } from 'bun:test';
 import type { FeedTrade } from '@hyperdash/shared-types';
-import { describe, expect, test } from 'vitest';
 import { type TradeSource, WhaleDiscovery } from './whale-discovery';
 
 function makeFeed(): { source: TradeSource; emit: (trades: FeedTrade[]) => void } {

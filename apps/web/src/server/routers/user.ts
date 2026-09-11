@@ -2,6 +2,11 @@ import { zValidator } from '@hono/zod-validator';
 import { users } from '@hyperdash/database/schema';
 import {
   AgentWallet,
+  mockAlerts,
+  mockNotifications,
+  mockStatistics,
+  mockTradingHistory,
+  mockWallets,
   Notification,
   PriceAlert,
   UserProfile,
@@ -11,13 +16,6 @@ import {
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import {
-  mockAlerts,
-  mockNotifications,
-  mockStatistics,
-  mockTradingHistory,
-  mockWallets,
-} from '~/server/fixtures/user';
 import { requireSession } from '~/server/middleware/auth';
 import type { AppEnv } from '~/server/types';
 import { resolveBusinessUserId } from '~/server/user';

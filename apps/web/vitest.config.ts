@@ -2,11 +2,12 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // Skill: Vitest via workerd for binding tests. Pool 0.22 + Vitest 4 runner
-    // mismatch currently blocks workerd; fallback to threads for pure utils
-    // and keep workerd config for future integration tests that need HYPERDRIVE/KV.
-    pool: 'threads',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    // Workers integration tests only (need HYPERDRIVE/KV bindings via workerd).
+    // Unit tests run under `bun test` (see `test` script); keep vitest for
+    // `test:workers`. Pool 0.22 + Vitest 4 runner mismatch currently blocks
+    // workerd, so no files match until integration tests land.
+    pool: '@cloudflare/vitest-pool-workers',
+    include: ['src/**/*.workers.test.ts'],
     exclude: ['node_modules', 'dist', '.wrangler'],
   },
 });

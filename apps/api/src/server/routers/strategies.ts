@@ -16,7 +16,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Db } from '~/db';
-import { createCopyQueue } from '~/queues/copy.queue';
+import { publishCopySignals } from '~/queues/copy.queue';
 import { requireSession } from '~/server/middleware/auth';
 import type { AppEnv } from '~/server/types';
 import { resolveBusinessUserId } from '~/server/user';
@@ -366,6 +366,9 @@ function formatStrategy(strategy: StrategyWithAllocations) {
     allocations: strategy.allocations.map((alloc) => ({
       traderId: alloc.traderId,
       weight: alloc.weight,
+      // The hydrated trader is what lets the UI show a wallet address and link
+      // to the trader page; without it an allocation can only render a UUID.
+      trader: alloc.trader ? { address: alloc.trader.address } : null,
       performance: {
         allocatedPnl: alloc.allocatedPnl,
         allocatedFees: alloc.allocatedFees,
@@ -418,19 +421,17 @@ export const strategiesRouter = new Hono<AppEnv>()
       if (!strategyWithAllocations) {
         return c.json({ error: 'strategy not found after creation' }, 500);
       }
-      // Enqueue copy signals (BE -> Go execution plane)
+      // Enqueue copy signals (BE -> Go execution plane, best-effort)
       try {
-        const queue = createCopyQueue(c.env as unknown as Record<string, unknown>);
-        await Promise.all(
-          allocations.map((alloc) =>
-            queue.publish({
-              strategyId: strategy.id,
-              userId,
-              traderId: alloc.traderId,
-              action: 'create',
-              timestamp: Date.now(),
-            }),
-          ),
+        await publishCopySignals(
+          c.env as unknown as Record<string, unknown>,
+          allocations.map((alloc) => ({
+            strategyId: strategy.id,
+            userId,
+            traderId: alloc.traderId,
+            action: 'create' as const,
+            timestamp: Date.now(),
+          })),
         );
       } catch {
         // best-effort

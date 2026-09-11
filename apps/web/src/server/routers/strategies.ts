@@ -365,6 +365,9 @@ function formatStrategy(strategy: StrategyWithAllocations) {
     allocations: strategy.allocations.map((alloc) => ({
       traderId: alloc.traderId,
       weight: alloc.weight,
+      // The hydrated trader is what lets the UI show a wallet address and link
+      // to the trader page; without it an allocation can only render a UUID.
+      trader: alloc.trader ? { address: alloc.trader.address } : null,
       performance: {
         allocatedPnl: alloc.allocatedPnl,
         allocatedFees: alloc.allocatedFees,

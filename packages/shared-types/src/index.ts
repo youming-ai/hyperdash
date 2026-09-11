@@ -232,6 +232,54 @@ export const UserStatistics = z.object({
   engagement: z.record(z.string(), z.any()).optional(),
 });
 
+export type { AgentApprovalState, ExtraAgent } from './agent-approval';
+// Exchange-side verification, shared by the BE router and the executor.
+export { checkAgentApproval, fetchExtraAgents, submitSignedAction } from './agent-approval';
+// AES-256-GCM key handling that runs on both Workers and Bun.
+export {
+  decryptAgentKey,
+  encryptAgentKey,
+  generateEncryptionKeyHex,
+  parseEncryptionKey,
+} from './agent-key';
+export type {
+  AgentApprovalConfirm,
+  AgentApprovalIntent,
+  AgentApprovalStatus,
+  AgentSignature,
+  ApproveAgentInput,
+  ApproveAgentTypedData,
+  HyperliquidNetwork,
+} from './agent-wallet';
+// Agent-wallet approval contract, shared by the BE router and the web hook so
+// the signed message and the submitted action cannot drift apart.
+export {
+  AGENT_EXPIRY_WARNING_MS,
+  AgentApprovalConfirmSchema,
+  AgentApprovalIntentSchema,
+  AgentApprovalStatusSchema,
+  AgentSignatureSchema,
+  ApproveAgentTypes,
+  agentNameBase,
+  buildAgentName,
+  buildApproveAgentAction,
+  buildApproveAgentTypedData,
+  DEFAULT_AGENT_VALIDITY_MS,
+  HYPERLIQUID_CHAIN_ID,
+  HYPERLIQUID_EXCHANGE_URL,
+  HYPERLIQUID_INFO_URL,
+  HYPERLIQUID_MAINNET_URL,
+  HYPERLIQUID_SIGNATURE_CHAIN_ID,
+  HYPERLIQUID_TESTNET_URL,
+  hyperliquidApiUrl,
+  hyperliquidExchangeUrl,
+  hyperliquidInfoUrl,
+  isApprovalExpiring,
+  MAX_AGENT_NAME_LENGTH,
+  networkOf,
+  parseAgentValidity,
+  ZERO_ADDRESS,
+} from './agent-wallet';
 // Schemas namespace for convenient access
 export {
   default as feed,
@@ -256,6 +304,27 @@ export {
   hyperliquidRequest,
   resolveInfoUrl,
 } from './hyperliquid';
+export type {
+  MockAlert,
+  MockNotification,
+  MockStatistics,
+  MockTrade,
+  MockWallet,
+} from './user-fixtures';
+export {
+  mockAlerts,
+  mockNotifications,
+  mockStatistics,
+  mockTradingHistory,
+  mockWallets,
+  parseMockAlerts,
+  parseMockNotifications,
+  parseMockStatistics,
+  parseMockTradingHistory,
+  parseMockWallets,
+} from './user-fixtures';
+export type { TradeSource, WhaleEntry } from './whale-discovery';
+export { MIN_SAMPLE_MS, WhaleDiscovery } from './whale-discovery';
 
 import {
   FeedBookSchema,

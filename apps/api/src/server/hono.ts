@@ -4,6 +4,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { createDb } from '~/db';
 import { createAuth } from '~/lib/auth';
 import { withSession } from '~/server/middleware/auth';
+import { agentWalletsRouter } from '~/server/routers/agent-wallets';
 import { analyticsRouter } from '~/server/routers/analytics';
 import { jobsRouter } from '~/server/routers/jobs';
 import { marketRouter } from '~/server/routers/market';
@@ -51,6 +52,7 @@ export const app = new Hono<AppEnv>()
   .use('*', withSession)
   .route('/traders', tradersRouter)
   .route('/strategies', strategiesRouter)
+  .route('/agent-wallets', agentWalletsRouter)
   .route('/market', marketRouter)
   .route('/user', userRouter)
   .route('/analytics', analyticsRouter)
