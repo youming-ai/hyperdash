@@ -13,7 +13,7 @@ enabled = true
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "REPLACE_WITH_HYPERDRIVE_ID"
-localConnectionString = "postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash"
+localConnectionString = "postgresql://postgres:postgres@localhost:5432/hyperdash"
 
 # KV for Better Auth secondary storage + rate-limit
 [[kv_namespaces]]
@@ -23,5 +23,11 @@ id = "REPLACE_WITH_KV_ID"
 [vars]
 PUBLIC_ORIGIN = "http://localhost:5173"
 HYPERLIQUID_API_URL = "https://api.hyperliquid.xyz/info"
+# Agent-authorization network. Testnet is a separate host, not a flag: signing
+# for one network and submitting to the other is rejected by the exchange.
+HYPERLIQUID_TESTNET = "0"
 
 # Secrets: wrangler secret put BETTER_AUTH_SECRET / RESEND_API_KEY / EMAIL_FROM
+#          wrangler secret put ENCRYPTION_KEY   # openssl rand -hex 32
+# ENCRYPTION_KEY must match the executor's (apps/copier): the BE encrypts agent
+# private keys at rest and the executor decrypts them to sign orders.

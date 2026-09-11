@@ -4,3 +4,9 @@ BETTER_AUTH_SECRET="dev-secret-change-me-min-32-chars-long"
 RESEND_API_KEY="re_xxxxxxxx"
 EMAIL_FROM="noreply@localhost"
 SENTRY_DSN=""
+
+# Backend Worker origin. When set, this Worker proxies /api/* to the standalone
+# BE instead of handling it locally. Required for BE-only endpoints such as
+# /api/agent-wallets (the BE owns the agent-key encryption key and keypair
+# generation). Point at http://localhost:5174 when running `bun run dev:api`.
+BE_URL="http://localhost:5174"

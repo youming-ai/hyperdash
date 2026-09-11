@@ -7,8 +7,8 @@
     "build": "vite build",
     "start": "wrangler dev",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "bun test src/",
+    "test:workers": "vitest run",
     "deploy": "wrangler deploy",
     "cf-typegen": "wrangler types",
     "auth:generate": "better-auth generate --config src/lib/auth-cli.ts --output ../../packages/database/postgres/src/auth-schema.ts"

@@ -1,7 +1,10 @@
 /**
  * Copy Queue — BE → Go execution plane.
- * Skill: Long-running jobs → Queues/Workflows.
- * BE produces `CopySignal` on strategy create/update; Go consumes.
+ *
+ * Workers has no TCP/Redis client, so the BE publishes `CopySignal` through a
+ * Cloudflare Queue binding (`COPY_QUEUE`) when present; the Go engine consumes
+ * `copy:signals` from Redis via its own consumer (`internal/queue/consumer.go`).
+ * Without the binding the publish is a no-op — strategy CRUD still succeeds.
  */
 
 export interface CopySignal {
@@ -12,40 +15,16 @@ export interface CopySignal {
   timestamp: number;
 }
 
-export interface CopyQueue {
-  publish(signal: CopySignal): Promise<void>;
+interface QueueBinding {
+  send: (msg: unknown) => Promise<void>;
 }
 
-export class NoopCopyQueue implements CopyQueue {
-  async publish(_signal: CopySignal): Promise<void> {}
-}
-
-/** Cloudflare Queue producer */
-export class CloudflareCopyQueue implements CopyQueue {
-  constructor(private readonly binding: { send: (msg: unknown) => Promise<void> }) {}
-  async publish(signal: CopySignal): Promise<void> {
-    await this.binding.send(signal);
-  }
-}
-
-/** Redis Streams fallback (local dev) */
-export class RedisCopyQueue implements CopyQueue {
-  constructor(
-    private readonly redis: {
-      xAdd: (key: string, id: string, fields: Record<string, string>) => Promise<unknown>;
-    },
-  ) {}
-  async publish(signal: CopySignal): Promise<void> {
-    await this.redis.xAdd('copy:signals', '*', { data: JSON.stringify(signal) });
-  }
-}
-
-export function createCopyQueue(
+export async function publishCopySignals(
   env: Record<string, unknown>,
-  redis?: { xAdd: (k: string, id: string, f: Record<string, string>) => Promise<unknown> },
-): CopyQueue {
-  const binding = env.COPY_QUEUE as { send: (msg: unknown) => Promise<void> } | undefined;
-  if (binding) return new CloudflareCopyQueue(binding);
-  if (redis) return new RedisCopyQueue(redis);
-  return new NoopCopyQueue();
+  signals: CopySignal[],
+): Promise<boolean> {
+  const binding = env.COPY_QUEUE as QueueBinding | undefined;
+  if (!binding) return false;
+  await Promise.all(signals.map((signal) => binding.send(signal)));
+  return true;
 }

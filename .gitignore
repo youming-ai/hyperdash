@@ -27,6 +27,12 @@ packages/**/src/**/*.d.ts.map
 # =============================================================================
 .env
 .env.*
+# Templates are committed on purpose: they document the required variables.
+!.env.example
+# Wrangler local secrets (per-app Cloudflare Worker bindings).
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 
 # =============================================================================
 # IDE
@@ -87,3 +93,8 @@ config/secrets/
 # Git worktrees
 # =============================================================================
 .worktrees/
+
+# =============================================================================
+# Agent tooling
+# =============================================================================
+.commandcode/

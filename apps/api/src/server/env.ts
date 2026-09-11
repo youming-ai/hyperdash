@@ -22,4 +22,11 @@ export interface WorkerEnv {
   BE_URL?: string;
   // Shared secret for machine-to-machine job endpoints (ingest cron -> BE).
   JOBS_SECRET?: string;
+  /**
+   * 32-byte hex key encrypting agent (API wallet) private keys at rest. Must
+   * match the executor's key, since the executor decrypts them to sign orders.
+   */
+  ENCRYPTION_KEY: string;
+  /** "1" routes agent authorization to the testnet host. */
+  HYPERLIQUID_TESTNET?: string;
 }

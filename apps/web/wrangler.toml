@@ -15,7 +15,7 @@ enabled = true
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "REPLACE_WITH_HYPERDRIVE_ID"
-localConnectionString = "postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash"
+localConnectionString = "postgresql://postgres:postgres@localhost:5432/hyperdash"
 
 # Session/cache acceleration + approximate rate-limit state.
 # Provision: `wrangler kv namespace create KV` then paste the id below.

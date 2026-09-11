@@ -25,6 +25,12 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "seed": {
+      "cache": false
+    },
+    "check": {
+      "cache": false
+    },
     "test": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"]
