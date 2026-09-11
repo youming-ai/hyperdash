@@ -61,9 +61,14 @@ jobs:
           echo "✅ PR description validation passed"
 
       - name: Check commit messages
+        env:
+          # The PR's own base tip. Using `origin/main` also inspected commits
+          # belonging to the base branch, so a stacked PR was judged partly on
+          # commits it does not contain.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          # Get all commits in the PR
-          COMMITS=$(git log --format='%s' origin/main..HEAD)
+          # Only the commits this PR actually adds.
+          COMMITS=$(git log --format='%s' "${BASE_SHA}..HEAD")
 
           while IFS= read -r commit; do
             # Skip merge commits (GitHub auto-generates these)
@@ -89,12 +94,18 @@ jobs:
           fetch-depth: 0
 
       - name: Check PR size
+        env:
+          # Diff against the PR's own base. Measuring from `origin/main` counted
+          # every commit below a stacked PR, so each slice was rejected for the
+          # combined size of the whole stack.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           # Count lines changed
-          LINES_CHANGED=$(git diff --stat origin/main..HEAD | tail -1 | awk '{print $4}')
+          LINES_CHANGED=$(git diff --stat "${BASE_SHA}..HEAD" | tail -1 | awk '{print $4}')
 
-          # Remove + and convert to number
+          # Remove + and convert to number, defaulting to 0 for an empty diff
           LINES_CHANGED=${LINES_CHANGED//[^0-9]/}
+          LINES_CHANGED=${LINES_CHANGED:-0}
 
           echo "Lines changed: $LINES_CHANGED"
 
