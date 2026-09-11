@@ -8,7 +8,10 @@ docs/
 LICENSE
 
 # Node.js
-node_modules/
+# `**/` is required: a bare `node_modules/` only matches the context root, so
+# per-workspace trees were copied in and clobbered the freshly installed ones
+# with host symlinks (Bun links each workspace's deps into a shared store).
+**/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -102,3 +105,13 @@ out/
 *.sqlite
 *.sqlite3
 *.db
+
+# Nested build output and caches (bare `dist/` above only matched the root).
+**/dist/
+**/.turbo/
+**/.wrangler/
+**/.tanstack/
+**/.output/
+**/coverage/
+*.tsbuildinfo
+wrangler.toml.bak

@@ -109,14 +109,18 @@ jobs:
         run: bun run build
 
       - name: Build Go copy-engine binary
-        continue-on-error: true
         run: |
           mkdir -p dist
           cd apps/copy-engine
-          go build -o ../../dist/copy-engine ./cmd/server
-        env:
-          GOOS: linux
-          GOARCH: amd64
+          # Both architectures on purpose. The production host is an Oracle
+          # Ampere A1 (ARM64) while CI runners and most dev machines are amd64,
+          # so building a single target silently ships a binary the deploy host
+          # cannot execute.
+          for arch in arm64 amd64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
+              go build -o "../../dist/copy-engine-linux-$arch" ./cmd/server
+          done
+          ls -l ../../dist/
 
   # Security Scanning
   security:
