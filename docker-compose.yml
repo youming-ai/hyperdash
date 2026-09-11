@@ -1,3 +1,16 @@
+# Local development data services.
+#
+# The project name is pinned so this stack keeps a stable identity regardless of
+# which directory it is invoked from. Without it, Compose derives the project
+# from the folder name, so renaming or moving the checkout silently orphans the
+# running containers: `docker compose ps/down` stop seeing them (they were
+# created under a different project) while `docker compose up` fails on the
+# explicit `container_name` collision below.
+#
+# It must also differ from docker-compose.prod.yml's `hyperdash-prod`, otherwise
+# both stacks resolve to the same volume names and would share one database.
+name: hyperdash
+
 services:
   # PostgreSQL
   postgres:
