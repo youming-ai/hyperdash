@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { WagmiProvider } from 'wagmi';
+import { ApiError } from '~/lib/api-client';
 import { wagmiConfig } from '~/lib/wagmi';
 
 import '@rainbow-me/rainbowkit/styles.css';
@@ -74,6 +75,25 @@ export function Providers({ children }: { children: ReactNode }) {
           queries: {
             staleTime: 30 * 1000,
             refetchOnWindowFocus: false,
+            /**
+             * Do not retry client errors.
+             *
+             * TanStack Query retries every failure three times by default, with
+             * exponential backoff. A 4xx cannot succeed on retry — 401 needs a
+             * session, 404 a different URL — so the retries only delay the
+             * message the user needs. A signed-out visitor to a protected route
+             * used to watch a skeleton for roughly eight seconds before being
+             * told to sign in; the first response already knew the answer.
+             *
+             * Server and network errors keep retrying, which is what the default
+             * is actually for.
+             */
+            retry: (failureCount, error) => {
+              if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+                return false;
+              }
+              return failureCount < 3;
+            },
           },
         },
       }),
