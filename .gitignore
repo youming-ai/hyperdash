@@ -28,7 +28,10 @@ packages/**/src/**/*.d.ts.map
 .env
 .env.*
 # Templates are committed on purpose: they document the required variables.
+# The pattern must cover prefixed variants too (.env.production.example),
+# otherwise a bare `!.env.example` leaves every other template ignored.
 !.env.example
+!.env.*.example
 # Wrangler local secrets (per-app Cloudflare Worker bindings).
 .dev.vars
 .dev.vars.*

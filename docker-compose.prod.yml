@@ -1,0 +1,303 @@
+# HyperDash production stack — Oracle Ampere A1 (ARM64) host.
+#
+#   cp .env.production.example .env.production   # then fill it in
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# Design notes:
+#  - Every image is built for linux/arm64, matching the A1 host. The Go engine
+#    and the Bun services are all multi-arch.
+#  - Only the tunnel and Postgres have published ports. Nothing else is reachable
+#    from the internet: the tunnel dials OUT, so no inbound port needs opening.
+#  - Postgres IS published, because Cloudflare Hyperdrive connects over TCP and
+#    cannot traverse a Cloudflare Tunnel. Lock it down at the firewall and rely
+#    on TLS + a least-privilege role; see docs/deployment.md.
+#  - `ingest` is a SINGLETON by design (in-process refcounted subscriptions and
+#    Bun's in-process pub/sub). Do not add `--scale ingest=2`.
+
+name: hyperdash
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
+
+services:
+  # ---------------------------------------------------------------------------
+  # Data
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    <<: [*restart]
+    logging: *logging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Reject unencrypted remote connections. Hyperdrive connects over the
+      # public internet, so this is not optional.
+      POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256'
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/etc/postgresql/server.crt
+      - -c
+      - ssl_key_file=/etc/postgresql/server.key
+      - -c
+      # Sized for a 24GB host with room to spare; the database itself is tiny
+      # (tens of MB), so this is generous headroom rather than a requirement.
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=6GB
+      - -c
+      - max_connections=200
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      # Generate once with the commands in docs/deployment.md.
+      - ./secrets/postgres/server.crt:/etc/postgresql/server.crt:ro
+      - ./secrets/postgres/server.key:/etc/postgresql/server.key:ro
+    ports:
+      # Bound to all interfaces on purpose: Hyperdrive must reach it. Restrict
+      # with the host firewall (only Cloudflare egress ranges) — never 0.0.0.0/0.
+      - '${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine
+    <<: [*restart]
+    logging: *logging
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --maxmemory
+      - 512mb
+      # Feed history is a bounded 7-day window, so evicting the oldest keys is
+      # the correct failure mode: losing history degrades the UI, whereas an
+      # OOM kill takes the ingestion pipeline down with it.
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - redis_data:/data
+    # No published port: only in-network services need Redis.
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Migrate — one-shot schema setup. The Postgres image's init.sql only creates
+  # extensions and a liveness table, NOT the application schema, so this must run
+  # once against a fresh database before copier/copy-engine can work.
+  #
+  #   docker compose -f docker-compose.prod.yml --env-file .env.production \
+  #     run --rm migrate
+  #
+  # Idempotent (CREATE TABLE IF NOT EXISTS), so re-running is safe.
+  # ---------------------------------------------------------------------------
+  migrate:
+    build:
+      context: .
+      dockerfile: packages/database/Dockerfile
+    image: hyperdash-migrate:${IMAGE_TAG:-latest}
+    profiles: [tools]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Ingest — long-lived Hyperliquid WS shards + browser WS hub.
+  # SINGLETON: in-process subscription refcounts and pub/sub. See the note above.
+  # ---------------------------------------------------------------------------
+  ingest:
+    build:
+      context: .
+      dockerfile: apps/ingest/Dockerfile
+    image: hyperdash-ingest:${IMAGE_TAG:-latest}
+    <<: [*restart]
+    logging: *logging
+    environment:
+      PORT: '3001'
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      # Shared secret for the whale-discovery cron -> BE job endpoint.
+      JOBS_SECRET: ${JOBS_SECRET}
+      BE_URL: ${BE_URL:-}
+      HYPERLIQUID_WS_URL: ${HYPERLIQUID_WS_URL:-wss://api.hyperliquid.xyz/ws}
+      HYPERLIQUID_API_URL: ${HYPERLIQUID_API_URL:-https://api.hyperliquid.xyz/info}
+      HL_WHALE_ADDRESSES: ${HL_WHALE_ADDRESSES:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      redis:
+        condition: service_healthy
+    # The browser WS hub. The tunnel exposes this on /ws.
+    ports:
+      - '127.0.0.1:${INGEST_PORT:-3001}:3001'
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Copier — reconciliation loop. Places real orders when LIVE=1.
+  # ---------------------------------------------------------------------------
+  copier:
+    build:
+      context: .
+      dockerfile: apps/copier/Dockerfile
+    image: hyperdash-copier:${IMAGE_TAG:-latest}
+    <<: [*restart]
+    logging: *logging
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # MUST be byte-identical to the api Worker's ENCRYPTION_KEY: the BE
+      # encrypts agent keys and this process decrypts them to sign orders.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # Defaults to paper. Anything other than "1" runs the identical pipeline
+      # against live data with simulated fills.
+      LIVE: ${LIVE:-0}
+      HYPERLIQUID_API_URL: ${HYPERLIQUID_API_URL:-https://api.hyperliquid.xyz/info}
+      HYPERLIQUID_TESTNET: ${HYPERLIQUID_TESTNET:-0}
+      MIN_ORDER_USD: ${MIN_ORDER_USD:-10}
+      DRIFT_THRESHOLD_PCT: ${DRIFT_THRESHOLD_PCT:-1}
+      SWEEP_INTERVAL_MS: ${SWEEP_INTERVAL_MS:-60000}
+      STRATEGY_REFRESH_MS: ${STRATEGY_REFRESH_MS:-15000}
+      DEFAULT_SLIPPAGE_BPS: ${DEFAULT_SLIPPAGE_BPS:-10}
+      DEFAULT_MAX_POSITION_USD: ${DEFAULT_MAX_POSITION_USD:-1000}
+      BUILDER_ADDRESS: ${BUILDER_ADDRESS:-}
+      BUILDER_FEE_RATE: ${BUILDER_FEE_RATE:-0.01%}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Grace period must exceed the copier's own shutdown path so an in-flight
+    # reconcile pass can drain instead of being killed mid-order.
+    stop_grace_period: 30s
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Copy engine (Go) — LEGACY execution plane. Not started by default.
+  #
+  # WARNING: this and `copier` are two independent processes that BOTH place real
+  # orders. Running both would execute the same strategy twice. copier is the
+  # current plane (reads strategies from Postgres, signs with per-account agent
+  # wallets held encrypted in the DB, and re-derives state on a periodic sweep).
+  # This engine instead consumes `copy:signals` from Redis and needs a single
+  # legacy master keypair (HYPERLIQUID_API_KEY / HYPERLIQUID_SECRET_KEY).
+  #
+  # Enable only if you have deliberately chosen this plane instead of copier:
+  #   docker compose -f docker-compose.prod.yml --profile legacy-execution up -d
+  # ---------------------------------------------------------------------------
+  copy-engine:
+    build:
+      context: ./apps/copy-engine
+      dockerfile: Dockerfile
+    image: hyperdash-copy-engine:${IMAGE_TAG:-latest}
+    profiles: [legacy-execution]
+    <<: [*restart]
+    logging: *logging
+    environment:
+      PORT: '8080'
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      HYPERLIQUID_BASE_URL: ${HYPERLIQUID_API_URL:-https://api.hyperliquid.xyz/info}
+      HYPERLIQUID_TESTNET: ${HYPERLIQUID_TESTNET:-0}
+      # Required only when this profile is enabled. Plain defaults (not `:?`) are
+      # deliberate: compose interpolates every service regardless of profile, so
+      # a required-variable error here would break the default stack's `up` too.
+      # The engine's own config validation still refuses to boot without them,
+      # which is the right place for the failure.
+      HYPERLIQUID_API_KEY: ${HYPERLIQUID_API_KEY:-}
+      HYPERLIQUID_SECRET_KEY: ${HYPERLIQUID_SECRET_KEY:-}
+      MAX_CONCURRENCY: ${MAX_CONCURRENCY:-8}
+      MAX_LEVERAGE: ${MAX_LEVERAGE:-10}
+      MAX_POSITION_SIZE: ${MAX_POSITION_SIZE:-10000}
+      MIN_ORDER_SIZE: ${MIN_ORDER_SIZE:-10}
+      # Basis points, per internal/config.
+      MAX_SLIPPAGE: ${MAX_SLIPPAGE_BPS:-10}
+      MAX_DAILY_LOSS: ${MAX_DAILY_LOSS:-1000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      redis:
+        condition: service_healthy
+    # No published port: reached in-network, and optionally scraped by Prometheus.
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Edge — outbound-only tunnel. No inbound ports, automatic TLS, origin hidden.
+  # `cloudflared` is excluded from the ARM note: it publishes an arm64 image.
+  # ---------------------------------------------------------------------------
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    <<: [*restart]
+    logging: *logging
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --config
+      - /etc/cloudflared/config.yml
+      - run
+    volumes:
+      - ./secrets/cloudflared:/etc/cloudflared:ro
+    depends_on: [ingest]
+    networks: [backend, edge]
+
+  # ---------------------------------------------------------------------------
+  # Observability (optional profile: --profile observability)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: [observability]
+    <<: [*restart]
+    logging: *logging
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - '127.0.0.1:9090:9090'
+    networks: [backend]
+
+  grafana:
+    image: grafana/grafana:latest
+    profiles: [observability]
+    <<: [*restart]
+    logging: *logging
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - '127.0.0.1:3000:3000'
+    depends_on: [prometheus]
+    networks: [backend]
+
+networks:
+  backend:
+    driver: bridge
+  # Separate network for the tunnel, so it can reach `ingest` without every
+  # other service being exposed to it.
+  edge:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:

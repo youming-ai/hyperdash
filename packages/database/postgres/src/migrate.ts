@@ -280,47 +280,53 @@ async function runMigrations() {
       $$ language 'plpgsql';
     `;
 
+    // One command per prepared statement, so DROP and CREATE are separate.
+    await client`DROP TRIGGER IF EXISTS update_users_updated_at ON users`;
     await client`
-      DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-      CREATE TRIGGER update_users_updated_at
+        CREATE TRIGGER update_users_updated_at
         BEFORE UPDATE ON users
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    `;
+      `;
 
+    // One command per prepared statement, so DROP and CREATE are separate.
+    await client`DROP TRIGGER IF EXISTS update_agent_wallets_updated_at ON agent_wallets`;
     await client`
-      DROP TRIGGER IF EXISTS update_agent_wallets_updated_at ON agent_wallets;
-      CREATE TRIGGER update_agent_wallets_updated_at
+        CREATE TRIGGER update_agent_wallets_updated_at
         BEFORE UPDATE ON agent_wallets
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    `;
+      `;
 
+    // One command per prepared statement, so DROP and CREATE are separate.
+    await client`DROP TRIGGER IF EXISTS update_traders_updated_at ON traders`;
     await client`
-      DROP TRIGGER IF EXISTS update_traders_updated_at ON traders;
-      CREATE TRIGGER update_traders_updated_at
+        CREATE TRIGGER update_traders_updated_at
         BEFORE UPDATE ON traders
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    `;
+      `;
 
+    // One command per prepared statement, so DROP and CREATE are separate.
+    await client`DROP TRIGGER IF EXISTS update_copy_strategies_updated_at ON copy_strategies`;
     await client`
-      DROP TRIGGER IF EXISTS update_copy_strategies_updated_at ON copy_strategies;
-      CREATE TRIGGER update_copy_strategies_updated_at
+        CREATE TRIGGER update_copy_strategies_updated_at
         BEFORE UPDATE ON copy_strategies
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    `;
+      `;
 
+    // One command per prepared statement, so DROP and CREATE are separate.
+    await client`DROP TRIGGER IF EXISTS update_copy_allocations_updated_at ON copy_allocations`;
     await client`
-      DROP TRIGGER IF EXISTS update_copy_allocations_updated_at ON copy_allocations;
-      CREATE TRIGGER update_copy_allocations_updated_at
+        CREATE TRIGGER update_copy_allocations_updated_at
         BEFORE UPDATE ON copy_allocations
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    `;
+      `;
 
+    // One command per prepared statement, so DROP and CREATE are separate.
+    await client`DROP TRIGGER IF EXISTS update_positions_last_updated_at ON positions`;
     await client`
-      DROP TRIGGER IF EXISTS update_positions_last_updated_at ON positions;
-      CREATE TRIGGER update_positions_last_updated_at
+        CREATE TRIGGER update_positions_last_updated_at
         BEFORE UPDATE ON positions
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    `;
+      `;
 
     console.log('✅ PostgreSQL migrations completed successfully!');
   } catch (error) {

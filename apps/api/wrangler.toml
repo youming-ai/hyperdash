@@ -9,25 +9,62 @@ mode = "smart"
 [observability]
 enabled = true
 
-# Postgres via Hyperdrive (edge pooler)
+# ---------------------------------------------------------------------------
+# PROVISION (one-time, per account). Both ids are account-specific and must be
+# replaced before the first deploy; scripts/preflight-deploy.ts refuses to run
+# while a placeholder survives.
+#
+# The Hyperdrive id may be the SAME config the web Worker uses — one pool in
+# front of one database avoids doubling connection pressure on Postgres.
+#
+#   bunx wrangler hyperdrive create hyperdash-db \
+#     --connection-string="postgres://hd_app:PASSWORD@DB_HOST:5432/hyperdash?sslmode=require"
+#   bunx wrangler kv namespace create KV
+# ---------------------------------------------------------------------------
+
+# Postgres via Hyperdrive (edge pooler).
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "REPLACE_WITH_HYPERDRIVE_ID"
 localConnectionString = "postgresql://postgres:postgres@localhost:5432/hyperdash"
 
-# KV for Better Auth secondary storage + rate-limit
+# KV for Better Auth secondary storage + rate limiting. KV is per-account and the
+# web Worker has its own binding; a co-located deployment may share one id.
 [[kv_namespaces]]
 binding = "KV"
 id = "REPLACE_WITH_KV_ID"
 
+# ---------------------------------------------------------------------------
+# COPY_QUEUE (optional). Uncomment to have the BE publish CopySignal messages
+# toward the execution plane. Requires a paid plan. Publishing is a no-op
+# without this binding, so strategy CRUD works either way.
+#
+#   bunx wrangler queues create copy-signals
+# ---------------------------------------------------------------------------
+# [[queues.producers]]
+# binding = "COPY_QUEUE"
+# queue = "copy-signals"
+
 [vars]
+# MUST be the real https origin before deploying: the SIWE domain derives from
+# it, so localhost here makes every wallet signature fail verification.
 PUBLIC_ORIGIN = "http://localhost:5173"
 HYPERLIQUID_API_URL = "https://api.hyperliquid.xyz/info"
+
 # Agent-authorization network. Testnet is a separate host, not a flag: signing
 # for one network and submitting to the other is rejected by the exchange.
+# Keep aligned with apps/copier's HYPERLIQUID_TESTNET.
 HYPERLIQUID_TESTNET = "0"
 
-# Secrets: wrangler secret put BETTER_AUTH_SECRET / RESEND_API_KEY / EMAIL_FROM
-#          wrangler secret put ENCRYPTION_KEY   # openssl rand -hex 32
-# ENCRYPTION_KEY must match the executor's (apps/copier): the BE encrypts agent
-# private keys at rest and the executor decrypts them to sign orders.
+# ---------------------------------------------------------------------------
+# Secrets (never in this file): `bunx wrangler secret put <NAME>`
+#   BETTER_AUTH_SECRET   openssl rand -base64 32
+#   RESEND_API_KEY
+#   EMAIL_FROM
+#
+#   ENCRYPTION_KEY       openssl rand -hex 32
+#     The BE encrypts agent private keys at rest and the executor
+#     (apps/copier) decrypts them to sign orders, so this value MUST be
+#     byte-identical in both places. A mismatch surfaces as a decryption
+#     failure at order time, not at boot.
+# ---------------------------------------------------------------------------
