@@ -14,7 +14,10 @@
 #  - `ingest` is a SINGLETON by design (in-process refcounted subscriptions and
 #    Bun's in-process pub/sub). Do not add `--scale ingest=2`.
 
-name: hyperdash
+# Distinct from docker-compose.yml's `hyperdash` project on purpose: sharing a
+# project name would make both stacks resolve to the same volume names
+# (hyperdash_postgres_data) and silently share one database.
+name: hyperdash-prod
 
 x-restart: &restart
   restart: unless-stopped
