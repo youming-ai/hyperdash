@@ -1,160 +1,417 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Activity, ArrowRight, BarChart3, Crosshair, Users, Zap } from 'lucide-react';
-import { api } from '~/lib/api-client';
-import { formatCompactNumber } from '~/lib/utils';
+import { ArrowRight, BarChart3, Crosshair, Users } from 'lucide-react';
+import { type ReactNode, useMemo, useState } from 'react';
+import { Badge } from '~/components/ui/badge';
+import { buttonVariants } from '~/components/ui/button';
+import { PageHeader } from '~/components/ui/page-header';
+import { Panel, PanelHeader } from '~/components/ui/panel';
+import { StatCard, StatGrid } from '~/components/ui/stat-card';
+import { PanelState } from '~/components/ui/state';
+import { type SortOrder, TableWrap, Td, Th } from '~/components/ui/table';
+import { api, readJson } from '~/lib/api-client';
+import {
+  cn,
+  formatFundingRate,
+  formatPercent,
+  formatPrice,
+  formatUsd,
+  toNumber,
+} from '~/lib/utils';
 
 export const Route = createFileRoute('/')({
-  component: HomePage,
+  component: OverviewPage,
 });
 
-interface MetaRow {
+interface MarketMeta {
   symbol: string;
   markPrice: number;
   fundingRate: number;
-  openInterest: number;
   volume24h: number;
   prevDayPx: number;
 }
 
-/** Live market strip — polls /api/market/metas, sorted by volume. */
-function MarketStrip() {
-  const { data } = useQuery({
-    queryKey: ['home-metas'],
-    queryFn: async () => {
-      const res = await api.market.metas.$get({ query: { limit: '100', minVolume: '20000000' } });
-      if (!res.ok) return { metas: [] as MetaRow[] };
-      return res.json() as Promise<{ metas: MetaRow[] }>;
-    },
+interface TraderRow {
+  address: string;
+  pnl7d?: string | number | null;
+  winrate?: string | number | null;
+  equityUsd?: string | number | null;
+}
+
+type MarketSort = 'volume24h' | 'symbol' | 'markPrice' | 'change';
+
+function changePct(market: MarketMeta): number {
+  const prev = toNumber(market.prevDayPx);
+  if (prev <= 0) return Number.NaN;
+  return ((toNumber(market.markPrice) - prev) / prev) * 100;
+}
+
+/** Overview — the market dashboard that replaced the old marketing landing page. */
+function OverviewPage() {
+  const [sortBy, setSortBy] = useState<MarketSort>('volume24h');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const markets = useQuery({
+    queryKey: ['overview-markets'],
+    queryFn: async () =>
+      readJson<{ metas: MarketMeta[] }>(
+        await api.market.metas.$get({ query: { limit: '200' } }),
+        'Market list',
+      ),
     refetchInterval: 30_000,
   });
 
-  const top = [...(data?.metas ?? [])].sort((a, b) => b.volume24h - a.volume24h).slice(0, 10);
+  const traders = useQuery({
+    queryKey: ['overview-traders'],
+    queryFn: async () =>
+      readJson<{ traders: TraderRow[] }>(
+        await api.traders.$get({
+          query: {
+            limit: '5',
+            sortBy: 'pnl',
+            sortOrder: 'desc',
+            timeframe: '7d',
+            isActive: 'false',
+          },
+        }),
+        'Top traders',
+      ),
+    refetchInterval: 60_000,
+  });
+
+  const rows = useMemo(() => {
+    const list = markets.data?.metas ?? [];
+    const sorted = [...list].sort((a, b) => {
+      let delta: number;
+      if (sortBy === 'symbol') delta = a.symbol.localeCompare(b.symbol);
+      else if (sortBy === 'markPrice') delta = toNumber(a.markPrice) - toNumber(b.markPrice);
+      else if (sortBy === 'change') delta = changePct(a) - changePct(b);
+      else delta = toNumber(a.volume24h) - toNumber(b.volume24h);
+      return sortOrder === 'asc' ? delta : -delta;
+    });
+    return sorted;
+  }, [markets.data, sortBy, sortOrder]);
+
+  const summary = useMemo(() => {
+    const list = markets.data?.metas ?? [];
+    let volume = 0;
+    let advancers = 0;
+    let decliners = 0;
+    let best: MarketMeta | null = null;
+    let bestChange = Number.NEGATIVE_INFINITY;
+    for (const market of list) {
+      volume += toNumber(market.volume24h);
+      const change = changePct(market);
+      if (!Number.isFinite(change)) continue;
+      if (change >= 0) advancers += 1;
+      else decliners += 1;
+      if (change > bestChange) {
+        bestChange = change;
+        best = market;
+      }
+    }
+    return { volume, advancers, decliners, best, bestChange, count: list.length };
+  }, [markets.data]);
+
+  function toggleSort(next: MarketSort) {
+    if (sortBy === next) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setSortBy(next);
+    setSortOrder(next === 'symbol' ? 'asc' : 'desc');
+  }
+
+  const visible = rows.slice(0, 25);
 
   return (
-    <div className="dock-scroll flex gap-6 overflow-x-auto px-1 py-1">
-      {top.map((m) => {
-        const change = m.prevDayPx > 0 ? ((m.markPrice - m.prevDayPx) / m.prevDayPx) * 100 : 0;
-        const up = change >= 0;
-        return (
-          <Link key={m.symbol} to="/terminal" className="group flex flex-col gap-0.5 text-xs">
-            <span className="font-medium opacity-80 group-hover:text-[hsl(var(--fg-accent))]">
-              {m.symbol}
-            </span>
-            <span className="num text-[13px]">
-              {m.markPrice >= 100 ? m.markPrice.toFixed(0) : m.markPrice.toFixed(3)}
-              <span className={`ml-1.5 text-[11px] ${up ? 'text-success' : 'text-destructive'}`}>
-                {up ? '+' : ''}
-                {change.toFixed(2)}%
-              </span>
-            </span>
-            <span className="text-[10.5px] text-fg-quaternary">
-              Vol ${formatCompactNumber(m.volume24h)}
-            </span>
+    <div>
+      <PageHeader
+        title="Overview"
+        description="Live Hyperliquid markets, tracked traders and copy strategies at a glance."
+        actions={
+          <Link to="/terminal" className={cn(buttonVariants({ variant: 'primary' }))}>
+            <Crosshair aria-hidden="true" />
+            Open terminal
           </Link>
-        );
-      })}
+        }
+      />
+
+      <StatGrid cols={4} className="mb-3">
+        <StatCard
+          label="24h volume"
+          value={markets.isPending ? '—' : formatUsd(summary.volume)}
+          hint="Across all tracked markets"
+        />
+        <StatCard
+          label="Markets"
+          value={markets.isPending ? '—' : summary.count}
+          hint="Listed on Hyperliquid"
+        />
+        <StatCard
+          label="Advancing"
+          value={markets.isPending ? '—' : `${summary.advancers}`}
+          hint={markets.isPending ? undefined : `${summary.decliners} declining over 24h`}
+          tone={markets.isPending ? 'neutral' : 'up'}
+        />
+        <StatCard
+          label="Top mover"
+          value={markets.isPending || !summary.best ? '—' : (summary.best.symbol ?? '—')}
+          hint={
+            markets.isPending || !Number.isFinite(summary.bestChange)
+              ? undefined
+              : formatPercent(summary.bestChange, 2)
+          }
+          tone={
+            markets.isPending || !Number.isFinite(summary.bestChange)
+              ? 'neutral'
+              : summary.bestChange >= 0
+                ? 'up'
+                : 'down'
+          }
+        />
+      </StatGrid>
+
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <Panel className="xl:col-span-2">
+          <PanelHeader
+            title="Markets"
+            actions={
+              <span className="text-2xs text-fg-quaternary">
+                {markets.isPending ? 'loading' : `${visible.length} of ${rows.length} by volume`}
+              </span>
+            }
+          />
+          {markets.isPending ? (
+            <PanelState state="loading" title="Loading markets…" />
+          ) : markets.isError ? (
+            <PanelState
+              state="error"
+              title="Could not load market data"
+              description={markets.error instanceof Error ? markets.error.message : undefined}
+              onRetry={() => void markets.refetch()}
+            />
+          ) : rows.length === 0 ? (
+            <PanelState
+              state="empty"
+              title="No markets returned"
+              description="The exchange metadata endpoint responded without any listed markets."
+            />
+          ) : (
+            <TableWrap label="Hyperliquid markets by 24h volume" maxHeight="60vh">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <Th
+                      sortable
+                      active={sortBy === 'symbol'}
+                      order={sortOrder}
+                      onSort={() => toggleSort('symbol')}
+                    >
+                      Market
+                    </Th>
+                    <Th
+                      align="right"
+                      sortable
+                      active={sortBy === 'markPrice'}
+                      order={sortOrder}
+                      onSort={() => toggleSort('markPrice')}
+                    >
+                      Mark
+                    </Th>
+                    <Th
+                      align="right"
+                      sortable
+                      active={sortBy === 'change'}
+                      order={sortOrder}
+                      onSort={() => toggleSort('change')}
+                      title="Change in mark price over the last 24 hours"
+                    >
+                      24h
+                    </Th>
+                    <Th align="right" title="Hourly funding rate">
+                      Funding
+                    </Th>
+                    <Th
+                      align="right"
+                      sortable
+                      active={sortBy === 'volume24h'}
+                      order={sortOrder}
+                      onSort={() => toggleSort('volume24h')}
+                    >
+                      Volume
+                    </Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((market) => {
+                    const change = changePct(market);
+                    const hasChange = Number.isFinite(change);
+                    return (
+                      <tr key={market.symbol}>
+                        <Td>
+                          <Link
+                            to="/terminal"
+                            search={{ coin: market.symbol }}
+                            className="font-medium hover:text-fg-accent"
+                          >
+                            {market.symbol}
+                          </Link>
+                        </Td>
+                        <Td align="right">{formatPrice(toNumber(market.markPrice))}</Td>
+                        <Td
+                          align="right"
+                          className={
+                            hasChange
+                              ? change >= 0
+                                ? 'text-up'
+                                : 'text-down'
+                              : 'text-fg-quaternary'
+                          }
+                        >
+                          {hasChange ? formatPercent(change, 2) : '—'}
+                        </Td>
+                        <Td align="right" className="text-fg-tertiary">
+                          {formatFundingRate(market.fundingRate)}
+                        </Td>
+                        <Td align="right" className="text-fg-secondary">
+                          {formatUsd(toNumber(market.volume24h))}
+                        </Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </TableWrap>
+          )}
+        </Panel>
+
+        <div className="flex flex-col gap-3">
+          <Panel>
+            <PanelHeader
+              title="Top traders · 7d"
+              actions={
+                <Link
+                  to="/traders"
+                  className="-my-1.5 inline-flex min-h-7 items-center rounded-sm px-1 -mr-1 text-2xs text-fg-accent hover:underline"
+                >
+                  View all
+                </Link>
+              }
+            />
+            {traders.isPending ? (
+              <PanelState state="loading" title="Loading traders…" />
+            ) : traders.isError ? (
+              <PanelState
+                state="error"
+                title="Could not load traders"
+                description={traders.error instanceof Error ? traders.error.message : undefined}
+                onRetry={() => void traders.refetch()}
+              />
+            ) : (traders.data?.traders.length ?? 0) === 0 ? (
+              <PanelState
+                state="empty"
+                title="No traders tracked yet"
+                description="Traders are discovered automatically from live Hyperliquid volume."
+              />
+            ) : (
+              <ul className="divide-y divide-[var(--border)]">
+                {(traders.data?.traders ?? []).map((trader) => {
+                  const pnl = toNumber(trader.pnl7d);
+                  return (
+                    <li key={trader.address}>
+                      <Link
+                        to="/traders/$address"
+                        params={{ address: trader.address }}
+                        className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-raised"
+                      >
+                        <span className="min-w-0">
+                          <span className="num block truncate text-sm">
+                            {trader.address.slice(0, 6)}…{trader.address.slice(-4)}
+                          </span>
+                          <span className="text-2xs text-fg-quaternary">
+                            win {formatPercent(trader.winrate)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span
+                            className={cn('num block text-sm', pnl >= 0 ? 'text-up' : 'text-down')}
+                          >
+                            {formatUsd(Math.abs(pnl))}
+                          </span>
+                          <span className="text-2xs text-fg-quaternary">
+                            {formatUsd(toNumber(trader.equityUsd))} equity
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel>
+            <PanelHeader title="Jump to" />
+            <div className="divide-y divide-[var(--border)]">
+              <QuickLink
+                to="/analytics"
+                icon={<BarChart3 className="size-4" aria-hidden="true" />}
+                title="Analytics"
+                description="Open interest, funding and stress heatmaps"
+              />
+              <QuickLink
+                to="/traders"
+                icon={<Users className="size-4" aria-hidden="true" />}
+                title="Traders"
+                description="Leaderboard with win rate, Sharpe and drawdown"
+              />
+              <QuickLink
+                to="/strategies"
+                icon={<Crosshair className="size-4" aria-hidden="true" />}
+                title="Strategies"
+                description="Automated copy trading with risk controls"
+              />
+            </div>
+          </Panel>
+
+          <Panel className="p-3">
+            <div className="flex items-start gap-2">
+              <Badge variant="accent">Beta</Badge>
+              <p className="text-2xs leading-relaxed text-fg-tertiary">
+                Market data is read from the public Hyperliquid API and may be delayed. Nothing here
+                is financial advice.
+              </p>
+            </div>
+          </Panel>
+        </div>
+      </div>
     </div>
   );
 }
 
-const FEATURES = [
-  {
-    icon: Activity,
-    title: 'Trading Terminal',
-    desc: 'Live order book, candlesticks and taker flow streamed from the Hyperliquid feed.',
-    to: '/terminal',
-  },
-  {
-    icon: Users,
-    title: 'Whale Tracking',
-    desc: 'Traders auto-discovered by real volume — profiles, positions and PnL ingested continuously.',
-    to: '/traders',
-  },
-  {
-    icon: BarChart3,
-    title: 'Market Analytics',
-    desc: 'Open interest, funding and price heatmaps, volatility-stress events, whale flows.',
-    to: '/analytics',
-  },
-  {
-    icon: Crosshair,
-    title: 'Copy Trading',
-    desc: 'Portfolio or single-trader strategies with leverage, slippage and drawdown controls.',
-    to: '/strategies',
-  },
-] as const;
-
-function HomePage() {
+function QuickLink({
+  to,
+  icon,
+  title,
+  description,
+}: {
+  to: '/analytics' | '/traders' | '/strategies';
+  icon: ReactNode;
+  title: string;
+  description: string;
+}) {
   return (
-    <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
-      {/* Market strip */}
-      <section className="panel mt-4 px-4 py-3">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-fg-tertiary">
-            Markets
-          </span>
-          <Link to="/terminal" className="text-[11px] text-fg-accent hover:underline">
-            Open terminal →
-          </Link>
-        </div>
-        <MarketStrip />
-      </section>
-
-      {/* Hero */}
-      <section className="flex flex-col items-center py-16 text-center md:py-24">
-        <span className="badge badge-accent mb-5">
-          <Zap className="h-3 w-3" /> Built on Hyperliquid
-        </span>
-        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">
-          Advanced trading terminal for{' '}
-          <span className="text-[hsl(var(--fg-accent))]">Hyperliquid</span>
-        </h1>
-        <p className="mt-5 max-w-xl text-base text-fg-tertiary">
-          Real-time market analytics, whale tracking and copy trading — streamed live from the
-          Hyperliquid order flow.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            to="/terminal"
-            className="flex items-center gap-2 rounded-lg bg-[hsl(var(--primary))] px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            <Crosshair className="h-4 w-4" /> Open Terminal
-          </Link>
-          <Link
-            to="/traders"
-            className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-fg-tertiary transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-          >
-            Explore Traders <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
-
-      {/* Feature grid */}
-      <section className="grid grid-cols-1 gap-3 pb-16 sm:grid-cols-2">
-        {FEATURES.map((f) => (
-          <Link
-            key={f.title}
-            to={f.to}
-            className="panel group p-5 transition-shadow hover:shadow-[0_0_0_1px_hsl(var(--fg-accent))]"
-          >
-            <f.icon className="mb-3 h-5 w-5 text-[hsl(var(--fg-accent))]" strokeWidth={1.8} />
-            <h3 className="mb-1.5 text-[15px] font-semibold">{f.title}</h3>
-            <p className="text-[13px] leading-relaxed text-fg-tertiary">{f.desc}</p>
-            <span className="mt-3 inline-flex items-center gap-1 text-[12px] text-fg-quaternary transition-colors group-hover:text-[hsl(var(--fg-accent))]">
-              Open <ArrowRight className="h-3 w-3" />
-            </span>
-          </Link>
-        ))}
-      </section>
-
-      {/* Footer */}
-      <footer className="flex items-center justify-between border-t border-[hsl(var(--border))] py-5 text-[11.5px] text-fg-quaternary">
-        <span>HyperDash — data from the Hyperliquid public API</span>
-        <span className="flex items-center gap-1.5">
-          <span className="status-dot status-dot-live" /> feed live
-        </span>
-      </footer>
-    </div>
+    <Link to={to} className="group flex items-center gap-3 px-3 py-2 hover:bg-raised">
+      <span className="text-fg-quaternary [&_svg]:size-4">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block truncate text-2xs text-fg-quaternary">{description}</span>
+      </span>
+      <ArrowRight
+        className="size-3.5 shrink-0 text-fg-quaternary transition-transform group-hover:translate-x-0.5"
+        aria-hidden="true"
+      />
+    </Link>
   );
 }

@@ -1,18 +1,44 @@
 import type { FeedCandle } from '@hyperdash/shared-types';
 import { useQuery } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { Activity, BookOpen, Radio } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { CandlestickChart } from '~/components/terminal/CandlestickChart';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { Activity } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+
+import { CandlestickChart, type ChartStatus } from '~/components/terminal/CandlestickChart';
 import { OrderBook } from '~/components/terminal/OrderBook';
 import { TradeFeed } from '~/components/terminal/TradeFeed';
 import { WhalePositions } from '~/components/terminal/WhalePositions';
+import { Badge } from '~/components/ui/badge';
+import { buttonVariants } from '~/components/ui/button';
+import { PageHeader } from '~/components/ui/page-header';
+import { Panel, PanelHeader } from '~/components/ui/panel';
+import { Segmented } from '~/components/ui/segmented';
+import { StatCard, type Tone } from '~/components/ui/stat-card';
+import { ErrorNotice, SkeletonBlock } from '~/components/ui/state';
 import { useCoinFeed } from '~/hooks/useCoinFeed';
-import { api } from '~/lib/api-client';
-import { FEED_REST_BASE } from '~/lib/feed-client';
-import { formatNumber, formatUsd } from '~/lib/utils';
+import { api, readJson } from '~/lib/api-client';
+import {
+  cn,
+  EM_DASH,
+  formatFundingApy,
+  formatFundingRate,
+  formatPrice,
+  formatSignedPercent,
+  formatUsd,
+  toNumberOrNull,
+} from '~/lib/utils';
+
+export interface TerminalSearch {
+  coin?: string;
+}
 
 export const Route = createFileRoute('/terminal')({
+  // The selected market is deep-linkable, so a refresh or a shared link keeps
+  // the symbol instead of silently resetting to BTC.
+  validateSearch: (search: Record<string, unknown>): TerminalSearch => {
+    const coin = typeof search.coin === 'string' ? search.coin.trim().toUpperCase() : '';
+    return coin ? { coin } : {};
+  },
   component: TerminalPage,
 });
 
@@ -28,222 +54,320 @@ interface MetaRow {
   volume24h: number;
 }
 
+interface OhlcvRow {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  tradeCount?: number;
+}
+
+type FeedStatus = 'connecting' | 'live' | 'offline';
+
 const DEFAULT_COIN = 'BTC';
+const CHART_BARS = 220;
+const SKELETON_CHIPS = [0, 1, 2, 3, 4, 5, 6, 7];
+
+const FEED_STATUS: Record<
+  FeedStatus,
+  { variant: 'neutral' | 'up' | 'warning'; label: string; dot: string }
+> = {
+  connecting: { variant: 'neutral', label: 'Feed connecting…', dot: 'status-dot-idle' },
+  live: { variant: 'up', label: 'Feed live', dot: 'status-dot-live' },
+  offline: { variant: 'warning', label: 'Feed offline · reconnecting', dot: 'status-dot-warn' },
+};
 
 function TerminalPage() {
-  const [selected, setSelected] = useState(DEFAULT_COIN);
+  const { coin: coinParam } = Route.useSearch();
+  const navigate = useNavigate();
+  const coin = coinParam ?? DEFAULT_COIN;
 
-  const { data: metasData } = useQuery({
+  const selectorRef = useRef<HTMLDivElement | null>(null);
+
+  const metasQuery = useQuery({
     queryKey: ['market-metas'],
-    queryFn: async () => {
-      const res = await api.market.metas.$get({ query: { limit: '60', minVolume: '5000000' } });
-      if (!res.ok) return { metas: [] as MetaRow[] };
-      return res.json() as Promise<{ metas: MetaRow[] }>;
-    },
+    queryFn: async () =>
+      readJson<{ metas: MetaRow[] }>(
+        await api.market.metas.$get({ query: { limit: '60', minVolume: '5000000' } }),
+        'Market list',
+      ),
   });
 
-  const topCoins = useMemo(() => {
-    const metas = metasData?.metas ?? [];
-    return [...metas].sort((a, b) => b.volume24h - a.volume24h).slice(0, 16);
-  }, [metasData]);
+  const metas = useMemo(() => metasQuery.data?.metas ?? [], [metasQuery.data]);
+  const topCoins = useMemo(
+    () => [...metas].sort((a, b) => b.volume24h - a.volume24h).slice(0, 16),
+    [metas],
+  );
+  const meta = metas.find((row) => row.symbol === coin);
 
-  const coin = selected;
+  // A deep-linked market outside the top-volume list still gets a tab, so the
+  // segmented control always has a selected (and announced) tab.
+  const coinItems = useMemo(() => {
+    const symbols = topCoins.map((row) => row.symbol);
+    const list = symbols.includes(coin) ? symbols : [coin, ...symbols];
+    return list.map((symbol) => ({ value: symbol, label: symbol }));
+  }, [topCoins, coin]);
+
   const feed = useCoinFeed(coin);
-  const metas = metasData?.metas ?? [];
-  const meta = metas.find((m) => m.symbol === coin);
 
-  // Backfill candle history over REST, then merge live feed updates on top.
-  const { data: historyCandles } = useQuery({
+  const historyQuery = useQuery({
     queryKey: ['ohlcv', coin, '1m'],
     queryFn: async () => {
-      const res = await api.market.ohlcv.$get({
-        query: { symbol: coin, timeframe: '1m', limit: '200' },
+      const rows = await readJson<OhlcvRow[]>(
+        await api.market.ohlcv.$get({
+          query: { symbol: coin, timeframe: '1m', limit: '200' },
+        }),
+        `${coin} candle history`,
+      );
+      return rows.map((row) => {
+        const start = new Date(row.timestamp).getTime();
+        return {
+          t: start,
+          T: start + 60_000,
+          s: coin,
+          i: '1m',
+          o: String(row.open),
+          c: String(row.close),
+          h: String(row.high),
+          l: String(row.low),
+          v: String(row.volume),
+          n: row.tradeCount ?? 0,
+        } satisfies FeedCandle;
       });
-      if (!res.ok) return [] as FeedCandle[];
-      const rows = (await res.json()) as Array<{
-        timestamp: string;
-        open: number;
-        high: number;
-        low: number;
-        close: number;
-        volume: number;
-        tradeCount?: number;
-      }>;
-      return rows.map((r) => ({
-        t: new Date(r.timestamp).getTime(),
-        T: new Date(r.timestamp).getTime() + 60_000,
-        s: coin,
-        i: '1m',
-        o: String(r.open),
-        c: String(r.close),
-        h: String(r.high),
-        l: String(r.low),
-        v: String(r.volume),
-        n: r.tradeCount ?? 0,
-      }));
     },
   });
 
   const candles = useMemo(() => {
     const live = feed.candles;
-    const liveTimes = new Set(live.map((c) => c.t));
-    const history = (historyCandles ?? []).filter((c) => !liveTimes.has(c.t));
-    return [...history, ...live].sort((a, b) => a.t - b.t).slice(-220);
-  }, [feed.candles, historyCandles]);
+    const liveTimes = new Set(live.map((candle) => candle.t));
+    const history = (historyQuery.data ?? []).filter((candle) => !liveTimes.has(candle.t));
+    return [...history, ...live].sort((a, b) => a.t - b.t).slice(-CHART_BARS);
+  }, [feed.candles, historyQuery.data]);
+
+  // Keep the active market visible: it can sit past the edge of the scrollable
+  // tab strip when a deep link selects a market late in the list.
+  const selectCoinTab = useCallback((node: HTMLDivElement | null) => {
+    selectorRef.current = node;
+    node
+      ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, []);
+
+  useEffect(() => {
+    const active = selectorRef.current?.querySelector<HTMLElement>(
+      `[id="terminal-coin-tab-${coin}"]`,
+    );
+    active?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [coin]);
 
   const ctx = feed.ctx;
-  const funding = ctx ? parseFloat(ctx.funding) : 0;
-  const oi = ctx ? parseFloat(ctx.openInterest) : 0;
-  const vol24h = ctx ? parseFloat(ctx.dayNtlVlm) : 0;
-  const prevDay = ctx ? parseFloat(ctx.prevDayPx) : 0;
-  const mark = ctx ? parseFloat(ctx.midPx ?? ctx.markPx) : 0;
-  const changePct = prevDay > 0 && mark > 0 ? ((mark - prevDay) / prevDay) * 100 : 0;
-  // funding is hourly; annualize: (1+r)^(24*365) - 1
-  const fundingApy = funding !== 0 ? Math.min((1 + funding) ** (24 * 365) - 1, 999) : 0;
+  const mark = toNumberOrNull(ctx?.midPx) ?? toNumberOrNull(ctx?.markPx);
+  const prevDay = toNumberOrNull(ctx?.prevDayPx);
+  const funding = toNumberOrNull(ctx?.funding);
+  const openInterest = toNumberOrNull(ctx?.openInterest);
+  const volume24h = toNumberOrNull(ctx?.dayNtlVlm);
+  const oracle = toNumberOrNull(ctx?.oraclePx);
+  const changePct =
+    mark !== null && prevDay !== null && prevDay > 0 ? ((mark - prevDay) / prevDay) * 100 : null;
+
+  const feedStatus: FeedStatus = !feed.stateLoaded
+    ? 'connecting'
+    : feed.connected
+      ? 'live'
+      : 'offline';
+  const statusMeta = FEED_STATUS[feedStatus];
+
+  const chartStatus: ChartStatus =
+    historyQuery.isError && candles.length === 0
+      ? 'error'
+      : historyQuery.isPending && candles.length === 0
+        ? 'loading'
+        : 'ready';
+
+  const stats: Array<{ label: string; value: string; tone: Tone; hint?: string }> = [
+    { label: 'Mark', value: mark === null ? EM_DASH : formatPrice(mark), tone: 'neutral' },
+    {
+      label: '24h change',
+      value: formatSignedPercent(changePct),
+      tone: changePct === null ? 'neutral' : changePct >= 0 ? 'up' : 'down',
+      hint: 'vs prev-day close',
+    },
+    {
+      label: 'Funding (1h)',
+      value: funding === null ? EM_DASH : formatFundingRate(funding),
+      tone: funding === null ? 'neutral' : funding >= 0 ? 'up' : 'down',
+      hint: funding === null ? undefined : `${formatFundingApy(funding)} APY`,
+    },
+    {
+      label: 'Open interest',
+      value: openInterest === null ? EM_DASH : formatUsd(openInterest),
+      tone: 'neutral',
+    },
+    {
+      label: '24h volume',
+      value: volume24h === null ? EM_DASH : formatUsd(volume24h),
+      tone: 'neutral',
+    },
+    {
+      label: 'Oracle',
+      value: oracle === null ? EM_DASH : formatPrice(oracle),
+      tone: 'neutral',
+    },
+  ];
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Activity className="w-5 h-5" /> Trading Terminal
-          </h1>
-          <p className="text-sm opacity-60 mt-0.5">
-            Live Hyperliquid order flow · book depth · whale positioning
-          </p>
-        </div>
-        <div className="flex items-center gap-3 text-xs">
-          <span className={`badge ${feed.connected ? 'badge-up' : 'badge-neutral'}`}>
-            <Radio className="h-3 w-3" />
-            {feed.connected ? 'Feed live' : 'Feed reconnecting…'}
+    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
+            <Activity className="size-5 text-fg-accent" aria-hidden="true" />
+            Trading Terminal
           </span>
-          <Link
-            to="/strategies/new"
-            className="px-3 py-1.5 rounded-lg bg-[hsl(var(--primary))] text-primary-foreground font-medium hover:opacity-90"
-          >
+        }
+        description="Live Hyperliquid order flow · book depth · whale positioning"
+        meta={
+          <Badge variant={statusMeta.variant} role="status" aria-live="polite">
+            <span className={cn('status-dot', statusMeta.dot)} aria-hidden="true" />
+            {statusMeta.label}
+          </Badge>
+        }
+        actions={
+          <Link to="/strategies/new" className={buttonVariants({ variant: 'primary' })}>
             Copy this market →
           </Link>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Coin selector */}
-      <div className="dock mb-4 w-fit">
-        {topCoins.map((c) => (
-          <button
-            key={c.symbol}
-            type="button"
-            onClick={() => setSelected(c.symbol)}
-            className="dock-tab dock-tab-accent num"
-            data-active={c.symbol === coin}
-          >
-            {c.symbol}
-          </button>
-        ))}
-      </div>
-
-      {/* Stats strip */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
-        <Stat label="Mark" value={mark > 0 ? formatNumber(mark) : '-'} accent={changePct >= 0} />
-        <Stat
-          label="24h"
-          value={`${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%`}
-          accent={changePct >= 0}
-          bare={!ctx}
-        />
-        <Stat
-          label="Funding"
-          value={ctx ? `${(funding * 100).toFixed(4)}%` : '-'}
-          hint={funding !== 0 ? `${(fundingApy * 100).toFixed(1)}% APY` : undefined}
-          accent={funding >= 0}
-        />
-        <Stat label="Open Interest" value={ctx ? formatUsd(oi) : '-'} />
-        <Stat label="24h Volume" value={ctx ? formatUsd(vol24h) : '-'} />
-        <Stat label="Oracle" value={ctx && meta ? formatNumber(meta.oraclePrice) : '-'} />
-      </div>
-
-      {/* Panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-3 space-y-4">
-          <Panel title={`Orderbook · ${coin}`} badge={<BookOpen className="w-3.5 h-3.5" />}>
-            <OrderBook book={feed.book} />
-          </Panel>
-          <Panel title={`Whale Positions · ${coin}`}>
-            <WhalePositions symbol={coin} />
-          </Panel>
+      <section className="mb-4 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="panel-title">Market</h2>
+          {metasQuery.isFetching && !metasQuery.isPending ? (
+            <span className="text-2xs text-fg-quaternary" role="status">
+              Updating markets…
+            </span>
+          ) : null}
         </div>
 
-        <div className="lg:col-span-6">
-          <Panel title={`${coin} · 1m`}>
-            <CandlestickChart candles={candles} />
-          </Panel>
-        </div>
+        {metasQuery.isError ? (
+          <ErrorNotice
+            message={
+              metasQuery.error instanceof Error
+                ? metasQuery.error.message
+                : 'The market list could not be loaded.'
+            }
+            onRetry={() => {
+              void metasQuery.refetch();
+            }}
+          />
+        ) : metasQuery.isPending ? (
+          <div className="flex flex-wrap gap-1.5" role="status">
+            <span className="sr-only">Loading markets…</span>
+            {SKELETON_CHIPS.map((chip) => (
+              <SkeletonBlock key={chip} className="h-7 w-14" />
+            ))}
+          </div>
+        ) : (
+          <div ref={selectCoinTab} className="min-w-0">
+            <Segmented
+              items={coinItems}
+              value={coin}
+              onChange={(next) => {
+                void navigate({ to: '/terminal', search: { coin: next }, replace: true });
+              }}
+              label="Market"
+              idBase="terminal-coin"
+            />
+          </div>
+        )}
 
-        <div className="lg:col-span-3">
-          <Panel title={`Trades · ${coin}`}>
-            <TradeFeed trades={feed.trades} />
-          </Panel>
-        </div>
-      </div>
+        {!metasQuery.isPending && !metasQuery.isError && topCoins.length === 0 ? (
+          <p className="text-xs text-fg-quaternary">
+            No markets matched the volume filter — showing {coin} only.
+          </p>
+        ) : null}
+      </section>
 
-      <p className="mt-4 text-xs opacity-40">
-        Data: Hyperliquid public feed via api-gateway{FEED_REST_BASE ? ` (${FEED_REST_BASE})` : ''}.
-        Not financial advice.
-      </p>
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  hint,
-  accent,
-  bare,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  accent?: boolean;
-  bare?: boolean;
-}) {
-  return (
-    <div className="panel p-3">
-      <div className="text-xs opacity-60 mb-0.5">{label}</div>
       <div
-        className={`text-lg font-mono font-semibold ${
-          bare !== true
-            ? accent === true
-              ? 'text-success'
-              : accent === false
-                ? 'text-destructive'
-                : ''
-            : ''
-        }`}
+        id={`terminal-coin-panel-${coin}`}
+        role="tabpanel"
+        aria-labelledby={`terminal-coin-tab-${coin}`}
+        className="flex flex-col gap-4"
       >
-        {value}
-      </div>
-      {hint ? <div className="text-[11px] opacity-50">{hint}</div> : null}
-    </div>
-  );
-}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          {stats.map((stat) => (
+            <StatCard
+              key={stat.label}
+              label={stat.label}
+              tone={stat.tone}
+              hint={stat.hint}
+              value={
+                <span className="block truncate" title={stat.value}>
+                  {stat.value}
+                </span>
+              }
+            />
+          ))}
+        </div>
 
-function Panel({
-  title,
-  badge,
-  children,
-}: {
-  title: string;
-  badge?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="panel overflow-hidden">
-      <div className="flex items-center gap-1.5 px-3 py-2 panel-header text-xs uppercase tracking-wide opacity-70">
-        {badge}
-        {title}
+        {/* Reading order is chart → order book/tape → whale positions at every
+            width; the 12-column terminal layout only applies from lg up. */}
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 lg:grid-cols-12">
+          <div className="md:col-span-2 lg:col-span-8">
+            <Panel>
+              <PanelHeader title={`${coin} · 1m candles`} />
+              <CandlestickChart
+                candles={candles}
+                symbol={coin}
+                timeframe="1m"
+                status={chartStatus}
+                errorMessage={
+                  historyQuery.error instanceof Error ? historyQuery.error.message : undefined
+                }
+                isRefreshing={historyQuery.isFetching && !historyQuery.isPending}
+                onRetry={() => {
+                  void historyQuery.refetch();
+                }}
+              />
+            </Panel>
+          </div>
+
+          <div className="md:col-span-1 lg:col-span-4">
+            <Panel>
+              <PanelHeader title={`Order book · ${coin}`} />
+              <OrderBook
+                book={feed.book}
+                status={feedStatus}
+                symbol={coin}
+                szDecimals={meta?.szDecimals ?? 4}
+              />
+            </Panel>
+          </div>
+
+          <div className="md:col-span-1 lg:col-span-4">
+            <Panel>
+              <PanelHeader title={`Trades · ${coin}`} />
+              <TradeFeed
+                trades={feed.trades}
+                status={feedStatus}
+                szDecimals={meta?.szDecimals ?? 4}
+              />
+            </Panel>
+          </div>
+
+          <div className="md:col-span-2 lg:col-span-8">
+            <Panel>
+              <PanelHeader title={`Whale positions · ${coin}`} />
+              <WhalePositions symbol={coin} szDecimals={meta?.szDecimals ?? 4} />
+            </Panel>
+          </div>
+        </div>
       </div>
-      {children}
+
+      <p className="mt-4 text-xs text-fg-quaternary">
+        Data: Hyperliquid public feed via the api-gateway. Not financial advice.
+      </p>
     </div>
   );
 }

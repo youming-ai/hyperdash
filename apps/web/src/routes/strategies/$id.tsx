@@ -1,254 +1,428 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { api } from '~/lib/api-client';
+import { type ReactNode, useMemo } from 'react';
+import { type StrategyStatus, StrategyStatusBadge } from '~/components/StrategyStatusBadge';
+import { AddressText } from '~/components/ui/address';
+import { Badge } from '~/components/ui/badge';
+import { Button, buttonVariants } from '~/components/ui/button';
+import { PageHeader } from '~/components/ui/page-header';
+import { Panel, PanelBody, PanelHeader } from '~/components/ui/panel';
+import { StatCard, StatGrid } from '~/components/ui/stat-card';
+import { ErrorNotice, PanelState, SkeletonBlock } from '~/components/ui/state';
+import { ApiError, api, readJson } from '~/lib/api-client';
+import { cn, formatDateTime, formatPercent, formatPnL, formatUsdFull, toNumber } from '~/lib/utils';
 
 export const Route = createFileRoute('/strategies/$id')({
   component: StrategyDetailPage,
 });
 
+/** Stable keys for the placeholder tiles rendered while loading. */
+const SKELETON_TILES = ['total-pnl', 'fees', 'net-pnl'] as const;
+
+interface AllocationRow {
+  traderId: string;
+  weight: number;
+  /**
+   * Hydrated by the server from the allocation's joined trader stats. Optional
+   * here because a row is still rendered when the join finds no trader.
+   */
+  trader?: { address: string } | null;
+  performance: { allocatedPnl: number; allocatedFees: number };
+}
+
+interface StrategyDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  status: StrategyStatus;
+  mode: 'portfolio' | 'single_trader';
+  riskParams: {
+    maxLeverage: number;
+    maxPositionUsd?: number;
+    slippageBps: number;
+    minOrderUsd: number;
+  };
+  settings: {
+    followNewEntriesOnly: boolean;
+    autoRebalance: boolean;
+    rebalanceThresholdBps: number;
+  };
+  performance: {
+    totalPnl: number;
+    totalFees: number;
+    alignmentRate: number;
+    totalTrades: number;
+  };
+  allocations: AllocationRow[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StrategyListResponse {
+  strategies: Array<StrategyDetail>;
+}
+
+type StatusValue = 'active' | 'paused';
+
+/** Pause / Resume against PATCH /strategies/:id, applied optimistically. */
+function useStrategyStatusMutation(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (status: StatusValue) => {
+      const res = await api.strategies[':id'].$patch({ param: { id }, json: { status } });
+      return readJson<{ success: boolean }>(res, 'Update strategy');
+    },
+    onMutate: async (status) => {
+      await queryClient.cancelQueries({ queryKey: ['strategy', id] });
+      await queryClient.cancelQueries({ queryKey: ['strategies'] });
+      const detail = queryClient.getQueryData<StrategyDetail>(['strategy', id]);
+      const lists = queryClient.getQueriesData<StrategyListResponse>({ queryKey: ['strategies'] });
+
+      if (detail) queryClient.setQueryData<StrategyDetail>(['strategy', id], { ...detail, status });
+      queryClient.setQueriesData<StrategyListResponse>({ queryKey: ['strategies'] }, (old) =>
+        old
+          ? { ...old, strategies: old.strategies.map((s) => (s.id === id ? { ...s, status } : s)) }
+          : old,
+      );
+
+      return { detail, lists };
+    },
+    onError: (_error, _status, context) => {
+      if (context?.detail) queryClient.setQueryData(['strategy', id], context.detail);
+      for (const [key, snapshot] of context?.lists ?? []) queryClient.setQueryData(key, snapshot);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['strategy', id] });
+      void queryClient.invalidateQueries({ queryKey: ['strategies'] });
+    },
+  });
+}
+
+/** One row of the settings description list. Values arrive pre-formatted. */
+function SettingRow({ label, value }: { label: ReactNode; value: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <dt className="text-fg-tertiary">{label}</dt>
+      <dd className="text-right font-medium">{value}</dd>
+    </div>
+  );
+}
+
 function StrategyDetailPage() {
   const { id } = Route.useParams();
 
-  const { data: strategy, isLoading } = useQuery({
+  const {
+    data: strategy,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['strategy', id],
     queryFn: async () => {
       const res = await api.strategies[':id'].$get({ param: { id } });
-      if (!res.ok) throw new Error('failed to load strategy');
-      return res.json();
+      return readJson<StrategyDetail>(res, 'Strategy');
     },
   });
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="text-center py-12 opacity-60">Loading strategy...</div>
-      </div>
-    );
-  }
+  const statusMutation = useStrategyStatusMutation(id);
+  const statusVariable = statusMutation.isError ? statusMutation.variables : undefined;
 
-  if (!strategy) {
+  const nextStatus: StatusValue | null =
+    strategy?.status === 'active'
+      ? 'paused'
+      : strategy === undefined || strategy.status === 'terminated'
+        ? null
+        : 'active';
+
+  const summary = useMemo(() => {
+    if (!strategy) return { netPnl: 0, allocatedPnl: 0 };
+    let allocatedPnl = 0;
+    for (const allocation of strategy.allocations) {
+      allocatedPnl += toNumber(allocation.performance.allocatedPnl);
+    }
+    return { netPnl: allocatedPnl - toNumber(strategy.performance.totalFees), allocatedPnl };
+  }, [strategy]);
+
+  if (isPending) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="text-center py-12">
-          <p className="text-lg mb-4">Strategy not found</p>
-          <Link
-            to="/strategies"
-            className="px-4 py-2 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-          >
-            Back to Strategies
-          </Link>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8" role="status" aria-busy="true">
+        <span className="sr-only">Loading strategy</span>
+        <PageHeader title={<SkeletonBlock className="h-7 w-56" />} />
+        <StatGrid cols={4} className="mb-4">
+          {SKELETON_TILES.map((tile) => (
+            <SkeletonBlock key={tile} className="h-20 rounded-lg" />
+          ))}
+        </StatGrid>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Panel>
+            <PanelState state="loading" title="Loading allocations" />
+          </Panel>
+          <Panel>
+            <PanelState state="loading" title="Loading settings" />
+          </Panel>
         </div>
       </div>
     );
   }
+
+  if (isError || strategy === undefined) {
+    const failureStatus = error instanceof ApiError ? error.status : 0;
+    const signedOut = isError && failureStatus === 401;
+    // A 404 (and the unreachable settled-without-data case) is "no such
+    // strategy", not a failure — blaming the user's URL for an outage is the
+    // bug this branch exists to avoid.
+    const missing = !isError || failureStatus === 404;
+
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <PageHeader title="Strategy" />
+        <Panel>
+          <PanelState
+            state={missing || signedOut ? 'empty' : 'error'}
+            title={
+              signedOut
+                ? 'Sign in to view this strategy'
+                : missing
+                  ? 'Strategy not found'
+                  : 'Could not load this strategy'
+            }
+            description={
+              signedOut
+                ? 'Your session has expired or you are signed out, so this strategy cannot be read.'
+                : missing
+                  ? 'This strategy does not exist, or it belongs to another account.'
+                  : error instanceof Error
+                    ? error.message
+                    : 'The request failed before it reached the server.'
+            }
+            onRetry={missing || signedOut ? undefined : () => void refetch()}
+          />
+          <div className="flex justify-center pb-6">
+            <Link to="/strategies" className={buttonVariants({ variant: 'outline', size: 'md' })}>
+              Back to Strategies
+            </Link>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  const totalPnl = toNumber(strategy.performance.totalPnl);
+  const totalFees = toNumber(strategy.performance.totalFees);
+  const slippageBps = toNumber(strategy.riskParams.slippageBps);
+  const rebalanceBps = toNumber(strategy.settings.rebalanceThresholdBps);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-bold">{strategy.name}</h1>
-            <StatusBadge status={strategy.status} />
-            <span className="badge badge-accent">
-              {strategy.mode === 'portfolio' ? 'Portfolio' : 'Single'}
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <PageHeader
+        title={strategy.name}
+        meta={
+          <>
+            <StrategyStatusBadge status={strategy.status} />
+            <Badge variant="accent">
+              {strategy.mode === 'portfolio' ? 'Portfolio' : 'Single trader'}
+            </Badge>
+          </>
+        }
+        description={
+          <>
+            {strategy.description ? <span className="block">{strategy.description}</span> : null}
+            <span className="mt-1 block text-xs text-fg-tertiary">
+              Created{' '}
+              <time dateTime={strategy.createdAt}>{formatDateTime(strategy.createdAt)}</time>
+              <span aria-hidden="true"> • </span>
+              Updated{' '}
+              <time dateTime={strategy.updatedAt}>{formatDateTime(strategy.updatedAt)}</time>
             </span>
-          </div>
-          {strategy.description && <p className="text-sm opacity-60">{strategy.description}</p>}
-          <p className="text-xs opacity-40 mt-2">
-            Created: {new Date(strategy.createdAt).toLocaleDateString()} • Last updated:{' '}
-            {new Date(strategy.updatedAt).toLocaleString()}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            to="/strategies/new"
-            className="px-4 py-2 rounded-lg border border-[hsl(var(--border))] text-sm font-medium hover:bg-[hsl(var(--accent))] transition-colors"
-          >
-            Edit Settings
-          </Link>
-          {strategy.status === 'active' ? (
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg bg-yellow-500 text-black text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Pause
-            </button>
-          ) : strategy.status === 'paused' ? (
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg bg-[hsl(var(--success))] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Resume
-            </button>
-          ) : null}
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <Link to="/strategies" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              Back to Strategies
+            </Link>
+            {nextStatus ? (
+              <Button
+                size="sm"
+                variant="subtle"
+                disabled={statusMutation.isPending}
+                onClick={() => statusMutation.mutate(nextStatus)}
+                className={cn(
+                  nextStatus === 'paused'
+                    ? 'bg-warning text-warning-foreground hover:bg-warning/90'
+                    : 'bg-success text-success-foreground hover:bg-success/90',
+                )}
+                title={
+                  nextStatus === 'paused'
+                    ? 'Stop copying new trades for this strategy'
+                    : 'Resume copying trades for this strategy'
+                }
+              >
+                {statusMutation.isPending
+                  ? nextStatus === 'paused'
+                    ? 'Pausing…'
+                    : 'Resuming…'
+                  : nextStatus === 'paused'
+                    ? 'Pause'
+                    : 'Resume'}
+              </Button>
+            ) : (
+              <span
+                className="text-2xs text-fg-tertiary"
+                title="A terminated strategy is final and cannot be resumed."
+              >
+                Final state
+              </span>
+            )}
+          </>
+        }
+      />
 
-      {/* Main Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      {statusMutation.isError ? (
+        <ErrorNotice
+          className="mb-3"
+          message={
+            statusMutation.error instanceof Error
+              ? statusMutation.error.message
+              : 'The status change was rejected.'
+          }
+          onRetry={statusVariable ? () => statusMutation.mutate(statusVariable) : undefined}
+        />
+      ) : null}
+
+      <StatGrid cols={4} className="mb-4">
         <StatCard
           label="Total PnL"
-          value={`$${strategy.performance.totalPnl.toLocaleString()}`}
-          positive={strategy.performance.totalPnl >= 0}
+          value={formatPnL(totalPnl)}
+          tone={totalPnl >= 0 ? 'up' : 'down'}
+          hint="Realized, before fees"
         />
         <StatCard
-          label="Total Fees"
-          value={`$${strategy.performance.totalFees.toLocaleString()}`}
+          label="Total fees"
+          value={formatUsdFull(totalFees)}
+          tone="down"
+          hint="Paid to the exchange"
         />
-        <StatCard label="Total Trades" value={`${strategy.performance.totalTrades}`} />
         <StatCard
-          label="Alignment Rate"
-          value={`${strategy.performance.alignmentRate}%`}
-          positive
+          label="Net PnL (after fees)"
+          value={formatPnL(summary.netPnl)}
+          tone={summary.netPnl >= 0 ? 'up' : 'down'}
+          hint={`Allocated PnL ${formatPnL(summary.allocatedPnl)} − fees`}
         />
-      </div>
+        <StatCard
+          label="Alignment rate"
+          value={formatPercent(toNumber(strategy.performance.alignmentRate), 1)}
+          hint="Mirrored exactly as intended"
+        />
+      </StatGrid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Allocations */}
-        <div className="panel p-5">
-          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
-            Trader Allocations
-          </h2>
-          <div className="space-y-4">
-            {strategy.allocations.map((alloc) => (
-              <div
-                key={alloc.traderId}
-                className="p-4 rounded-lg bg-[hsl(var(--muted)/0.3)] border border-[hsl(var(--border))]"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-medium font-mono">{alloc.traderId}</p>
-                    <p className="text-xs opacity-60">
-                      {Math.round(alloc.weight * 100)}% allocation
-                    </p>
-                  </div>
-                  <span className="text-sm font-medium">{Math.round(alloc.weight * 100)}%</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="opacity-60">Allocated PnL:</span>{' '}
-                    <span
-                      className={
-                        alloc.performance.allocatedPnl >= 0 ? 'text-success' : 'text-destructive'
-                      }
-                    >
-                      ${alloc.performance.allocatedPnl.toLocaleString()}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="opacity-60">Allocated Fees:</span>{' '}
-                    <span>${alloc.performance.allocatedFees.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Strategy Settings */}
-        <div className="panel p-5">
-          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
-            Strategy Settings
-          </h2>
-          <div className="space-y-3">
-            <SettingRow
-              label="Mode"
-              value={strategy.mode === 'portfolio' ? 'Portfolio' : 'Single Trader'}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Panel>
+          <PanelHeader title="Trader allocations" />
+          {strategy.allocations.length === 0 ? (
+            <PanelState
+              state="empty"
+              title="No traders allocated"
+              description="Without an allocation this strategy has nothing to copy."
             />
-            <SettingRow label="Max Leverage" value={`${strategy.riskParams.maxLeverage}x`} />
-            {strategy.riskParams.maxPositionUsd && (
+          ) : (
+            <PanelBody className="space-y-2">
+              {strategy.allocations.map((allocation) => {
+                const address = allocation.trader?.address;
+                const allocatedPnl = toNumber(allocation.performance.allocatedPnl);
+                const idTitle = `Trader ID: ${allocation.traderId}`;
+
+                return (
+                  <div
+                    key={allocation.traderId}
+                    className="rounded-md bg-inset p-2.5"
+                    title={
+                      address ? idTitle : `${idTitle} — the API did not return a wallet address`
+                    }
+                  >
+                    <div className="flex min-w-0 items-center justify-between gap-3">
+                      {address ? (
+                        <Link
+                          to="/traders/$address"
+                          params={{ address }}
+                          className="min-w-0 text-sm transition-colors hover:text-fg-accent"
+                        >
+                          <AddressText address={address} showCopy={false} />
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-fg-quaternary">Address unavailable</span>
+                      )}
+                      <span className="num shrink-0 text-sm font-medium">
+                        {formatPercent(toNumber(allocation.weight) * 100, 0)}
+                      </span>
+                    </div>
+                    <dl className="mt-2 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-fg-tertiary">Allocated PnL</dt>
+                        <dd className={cn('num', allocatedPnl >= 0 ? 'text-up' : 'text-down')}>
+                          {formatPnL(allocatedPnl)}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-fg-tertiary">Allocated fees</dt>
+                        <dd className="num text-fg-secondary">
+                          {formatUsdFull(toNumber(allocation.performance.allocatedFees))}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                );
+              })}
+            </PanelBody>
+          )}
+        </Panel>
+
+        <Panel>
+          <PanelHeader title="Strategy settings" />
+          <PanelBody>
+            <dl className="divide-y divide-border text-sm">
               <SettingRow
-                label="Max Position"
-                value={`$${strategy.riskParams.maxPositionUsd.toLocaleString()}`}
+                label="Mode"
+                value={strategy.mode === 'portfolio' ? 'Portfolio' : 'Single trader'}
               />
-            )}
-            <SettingRow label="Slippage" value={`${strategy.riskParams.slippageBps / 100}%`} />
-            <SettingRow label="Min Order" value={`$${strategy.riskParams.minOrderUsd}`} />
-            <hr className="border-[hsl(var(--border))]" />
-            <SettingRow
-              label="New Entries Only"
-              value={strategy.settings.followNewEntriesOnly ? 'Yes' : 'No'}
-            />
-            <SettingRow
-              label="Auto Rebalance"
-              value={strategy.settings.autoRebalance ? 'Yes' : 'No'}
-            />
-            {strategy.settings.autoRebalance && (
               <SettingRow
-                label="Rebalance Threshold"
-                value={`${strategy.settings.rebalanceThresholdBps / 100}%`}
+                label="Max leverage"
+                value={`${toNumber(strategy.riskParams.maxLeverage).toFixed(1)}x`}
               />
-            )}
-          </div>
-        </div>
+              {strategy.riskParams.maxPositionUsd ? (
+                <SettingRow
+                  label="Max position"
+                  value={formatUsdFull(toNumber(strategy.riskParams.maxPositionUsd))}
+                />
+              ) : null}
+              <SettingRow
+                label="Slippage tolerance"
+                value={`${slippageBps} bps (${formatPercent(slippageBps / 100, 2)})`}
+              />
+              <SettingRow
+                label="Min order size"
+                value={formatUsdFull(toNumber(strategy.riskParams.minOrderUsd))}
+              />
+              <SettingRow
+                label="Follow new entries only"
+                value={strategy.settings.followNewEntriesOnly ? 'Yes' : 'No'}
+              />
+              <SettingRow
+                label="Auto rebalance"
+                value={strategy.settings.autoRebalance ? 'Yes' : 'No'}
+              />
+              {strategy.settings.autoRebalance ? (
+                <SettingRow
+                  label="Rebalance threshold"
+                  value={`${rebalanceBps} bps (${formatPercent(rebalanceBps / 100, 2)})`}
+                />
+              ) : null}
+            </dl>
+          </PanelBody>
+        </Panel>
       </div>
-
-      {/* Performance Metrics */}
-      <div className="panel p-5 mb-6">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
-          Performance Metrics
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
-          <MetricCard label="Total Trades" value={strategy.performance.totalTrades} />
-          <MetricCard label="Alignment Rate" value={`${strategy.performance.alignmentRate}%`} />
-        </div>
-      </div>
-
-      {/* Recent Copied Trades */}
-      <div className="panel p-5">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
-          Recent Copied Trades
-        </h2>
-        <div className="text-center py-8 opacity-60">No recent copied trades available.</div>
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    active: 'badge badge-up',
-    paused: 'badge badge-neutral',
-    error: 'badge badge-down',
-    terminated: 'badge badge-neutral',
-  };
-  return <span className={map[status.toLowerCase()] ?? 'badge badge-neutral'}>{status}</span>;
-}
-
-function StatCard({
-  label,
-  value,
-  positive,
-}: {
-  label: string;
-  value: string;
-  positive?: boolean;
-}) {
-  return (
-    <div className="panel p-4">
-      <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-tertiary mb-1">
-        {label}
-      </p>
-      <p className={`num text-xl font-bold ${positive ? 'text-success' : ''}`}>{value}</p>
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="p-3 rounded-lg bg-[hsl(var(--muted)/0.3)]">
-      <p className="text-xs opacity-60 mb-1">{label}</p>
-      <p className="text-lg font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function SettingRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between py-2">
-      <span className="opacity-60">{label}</span>
-      <span className="font-medium">{value}</span>
     </div>
   );
 }

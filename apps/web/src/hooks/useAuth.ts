@@ -16,6 +16,7 @@ export function useAuth() {
   const { data: session, isPending } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const signIn = async () => {
     if (!address || !chainId) {
@@ -56,9 +57,30 @@ export function useAuth() {
     }
   };
 
+  /**
+   * Sign out of the Better Auth session and drop the wallet connection.
+   *
+   * Both steps are attempted even if the first fails, and any failure is
+   * reported rather than swallowed: a silently failed sign-out leaves the user
+   * believing they are logged out while the session cookie is still live.
+   */
   const signOut = async () => {
-    await authClient.signOut();
-    disconnect();
+    setIsSigningOut(true);
+    setError(null);
+    try {
+      const { error: signOutError } = await authClient.signOut();
+      if (signOutError) throw new Error(signOutError.message ?? 'Sign-out failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-out failed');
+    } finally {
+      // Always disconnect locally, so the wallet is never left attached to a
+      // session the user asked to end.
+      try {
+        disconnect();
+      } finally {
+        setIsSigningOut(false);
+      }
+    }
   };
 
   return {
@@ -66,6 +88,7 @@ export function useAuth() {
     isAuthenticated: Boolean(session),
     isLoading: isPending,
     isSigningIn,
+    isSigningOut,
     isConnected,
     address,
     error,

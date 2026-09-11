@@ -29,7 +29,17 @@ export const FEED_COINS: string[] = [
   'LINK',
 ];
 
+/**
+ * Base origin for the feed's REST history surface.
+ *
+ * NOTE: the `/feed/history/*` and `/feed/whales` routes are served by the
+ * api-gateway service, NOT by the ingest WS hub the socket URL points at. Set
+ * `VITE_FEED_REST_URL` explicitly when they live on different hosts; the
+ * fallback keeps the historical behaviour of deriving it from the WS URL.
+ */
 export const FEED_REST_BASE: string = (() => {
+  const explicit = import.meta.env.VITE_FEED_REST_URL;
+  if (explicit) return explicit.replace(/\/$/, '');
   try {
     const url = new URL(FEED_WS_URL);
     url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
@@ -182,20 +192,70 @@ export interface FeedHistoryPoint {
   [key: string]: number | string;
 }
 
+/**
+ * Raised when the feed REST surface answers non-2xx or never responds.
+ * Callers MUST surface this as an error state: silently returning `[]` turns
+ * an outage into "no data yet", which is how a broken pipeline ends up
+ * looking like an empty market.
+ */
+export class FeedRequestError extends Error {
+  readonly status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'FeedRequestError';
+    this.status = status;
+  }
+}
+
+async function fetchFeed<T>(url: string, label: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: 'no-store' });
+  } catch {
+    throw new FeedRequestError(
+      `${label} is unreachable. The feed history service is expected at ${FEED_REST_BASE} — set VITE_FEED_REST_URL if it runs elsewhere.`,
+    );
+  }
+  if (!res.ok) {
+    throw new FeedRequestError(`${label} failed with HTTP ${res.status}.`, res.status);
+  }
+  return (await res.json()) as T;
+}
+
 export async function fetchFeedHistory<T extends FeedHistoryPoint>(
   path: '/funding' | '/price' | '/oi' | '/volume' | '/stress' | '/whale-flow',
   params: Record<string, string | number>,
 ): Promise<T[]> {
-  try {
-    const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]));
-    const res = await fetch(`${FEED_REST_BASE}/feed/history${path}?${query.toString()}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return [];
-    return (await res.json()) as T[];
-  } catch {
-    return [];
-  }
+  const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]));
+  return fetchFeed<T[]>(
+    `${FEED_REST_BASE}/feed/history${path}?${query.toString()}`,
+    `Feed history ${path}`,
+  );
+}
+
+export interface WhaleDiscoverySummary {
+  address: string;
+  notionalUsd: number;
+  trades: number;
+}
+
+export interface WhaleDiscoveryResponse {
+  discovered: WhaleDiscoverySummary[];
+  sampleSeconds: number;
+  ready: boolean;
+}
+
+/** Whale wallets discovered from live volume, with their sampled notional. */
+export async function fetchWhaleDiscovery(): Promise<WhaleDiscoveryResponse> {
+  const body = await fetchFeed<Partial<WhaleDiscoveryResponse>>(
+    `${FEED_REST_BASE}/feed/whales`,
+    'Whale discovery',
+  );
+  return {
+    discovered: Array.isArray(body.discovered) ? body.discovered : [],
+    sampleSeconds: Number(body.sampleSeconds ?? 0),
+    ready: Boolean(body.ready),
+  };
 }
 
 export type { FeedBook, FeedCandle, FeedCtx, FeedState, FeedTrade };

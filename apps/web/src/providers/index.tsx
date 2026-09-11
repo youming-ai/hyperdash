@@ -59,7 +59,7 @@ function applyThemeClass(theme: Theme): void {
 
 function rainbowTheme(theme: Theme): RainbowTheme {
   const common = {
-    accentColor: '#ed3602',
+    accentColor: '#cf3406',
     accentColorForeground: 'white',
     borderRadius: 'medium' as const,
   };
