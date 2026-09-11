@@ -231,7 +231,7 @@ export const authRouter = t.router({
         token: z.string(),
       }),
     )
-    .query(async ({ input, ctx }: { input: { token: string }; ctx: any }) => {
+    .query(async ({ input }: { input: { token: string }; ctx: any }) => {
       const { token } = input;
       const authService = getAuthService();
 
@@ -288,7 +288,7 @@ export const authRouter = t.router({
           expired: decoded.exp ? Date.now() / 1000 > (decoded.exp as number) : false,
           validUntil: decoded.exp ? new Date((decoded.exp as number) * 1000).toISOString() : null,
         };
-      } catch (error) {
+      } catch (_error) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Unable to decode token',
@@ -297,7 +297,7 @@ export const authRouter = t.router({
     }),
 
   // Get authentication statistics (admin only)
-  authStats: protectedProcedure.query(async ({ ctx }) => {
+  authStats: protectedProcedure.query(async () => {
     const authService = getAuthService();
     const stats = authService.getTokenStats();
 
@@ -320,7 +320,7 @@ export const authRouter = t.router({
         password: z.string(),
       }),
     )
-    .query(async ({ input, ctx }: { input: { password: string }; ctx: any }) => {
+    .query(async ({ input }: { input: { password: string }; ctx: any }) => {
       const { password } = input;
       const authService = getAuthService();
 

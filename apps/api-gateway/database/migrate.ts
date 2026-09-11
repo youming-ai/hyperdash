@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Pool } from 'pg';
 import { logger } from '../utils/logger';
 
@@ -33,7 +33,7 @@ export class MigrationRunner {
   }
 
   private calculateHash(sql: string): string {
-    const crypto = require('crypto');
+    const crypto = require('node:crypto');
     return crypto.createHash('sha256').update(sql).digest('hex');
   }
 

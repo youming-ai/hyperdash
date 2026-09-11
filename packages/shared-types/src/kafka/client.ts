@@ -1,11 +1,4 @@
-import {
-  type Consumer,
-  type EachMessagePayload,
-  Kafka,
-  type KafkaMessage,
-  type Producer,
-  type SASLOptions,
-} from 'kafkajs';
+import { type Consumer, Kafka, type KafkaMessage, type Producer, type SASLOptions } from 'kafkajs';
 
 export interface KafkaConfig {
   brokers: string[];
@@ -237,7 +230,7 @@ export class KafkaManager {
 
       // Start consuming messages
       await consumer.run({
-        eachMessage: async ({ topic, partition, message, heartbeat }) => {
+        eachMessage: async ({ topic, partition, message }) => {
           try {
             await messageHandler(message, topic, partition, message.offset);
           } catch (error) {

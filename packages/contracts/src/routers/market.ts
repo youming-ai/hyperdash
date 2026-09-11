@@ -1,7 +1,6 @@
 import { HeatmapBinSchema, MarketOverviewSchema, OHLCVSchema } from '@hyperdash/shared-types';
 import { z } from 'zod';
 import t from '../trpc';
-import { NotFoundError } from '../utils/errors';
 
 // Input schemas
 const MarketOverviewParamsSchema = z.object({
@@ -22,7 +21,7 @@ const HeatmapParamsSchema = z.object({
 
 export const marketRouter = t.router({
   // Market Overview
-  overview: t.procedure.input(MarketOverviewParamsSchema).query(async ({ input, ctx }) => {
+  overview: t.procedure.input(MarketOverviewParamsSchema).query(async ({ input }) => {
     // Implementation will query ClickHouse for current market data
     const { symbol } = input;
 
@@ -44,9 +43,8 @@ export const marketRouter = t.router({
   }),
 
   // OHLCV Data
-  ohlcv: t.procedure.input(OHLCVParamsSchema).query(async ({ input, ctx }) => {
-    const { symbol, timeframe, limit } = input;
-
+  ohlcv: t.procedure.input(OHLCVParamsSchema).query(async ({ input }) => {
+    const { limit } = input;
     // Implementation will query ClickHouse for historical data
     // Mock data for now
     const data = Array.from({ length: limit }, (_, i) => ({
@@ -63,8 +61,8 @@ export const marketRouter = t.router({
   }),
 
   // Liquidation Heatmap
-  heatmap: t.procedure.input(HeatmapParamsSchema).query(async ({ input, ctx }) => {
-    const { symbol, window, binCount } = input;
+  heatmap: t.procedure.input(HeatmapParamsSchema).query(async ({ input }) => {
+    const { binCount } = input;
 
     // Implementation will query ClickHouse heatmap bins
     // Mock data for now

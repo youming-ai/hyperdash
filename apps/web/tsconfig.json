@@ -1,11 +1,12 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "node_modules", "dist", ".tanstack", ".wrangler"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
     "module": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "@cloudflare/workers-types"],
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -22,7 +23,9 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "~/*": ["./src/*"],
+      "drizzle-orm": ["../../packages/database/node_modules/drizzle-orm"],
+      "drizzle-orm/*": ["../../packages/database/node_modules/drizzle-orm/*"]
     }
   }
 }

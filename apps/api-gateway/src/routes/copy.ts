@@ -33,7 +33,7 @@ export const copyRouter = t.router({
     )
     .query(async ({ input, ctx }) => {
       const { status } = input;
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
 
       const strategies = await copyService.getStrategiesByUser(userId);
 
@@ -110,7 +110,7 @@ export const copyRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const { name, description, mode, riskParams, settings, allocations } = input;
 
       // Strategy + allocations are created atomically in one transaction.
@@ -137,25 +137,25 @@ export const copyRouter = t.router({
       const strategyWithAllocations = await copyService.getStrategyById(strategy.id, userId);
 
       return {
-        id: strategyWithAllocations!.id,
-        name: strategyWithAllocations!.name,
-        description: strategyWithAllocations!.description,
-        status: strategyWithAllocations!.status,
-        mode: strategyWithAllocations!.mode,
+        id: strategyWithAllocations?.id,
+        name: strategyWithAllocations?.name,
+        description: strategyWithAllocations?.description,
+        status: strategyWithAllocations?.status,
+        mode: strategyWithAllocations?.mode,
         riskParams,
         settings,
         performance: {
-          totalPnl: Number(strategyWithAllocations!.totalPnl || 0),
-          totalFees: Number(strategyWithAllocations!.totalFees || 0),
-          alignmentRate: Number(strategyWithAllocations!.alignmentRate || 100),
+          totalPnl: Number(strategyWithAllocations?.totalPnl || 0),
+          totalFees: Number(strategyWithAllocations?.totalFees || 0),
+          alignmentRate: Number(strategyWithAllocations?.alignmentRate || 100),
           totalTrades: 0,
         },
         allocations: allocations.map((alloc) => ({
           ...alloc,
           performance: { allocatedPnl: 0, allocatedFees: 0 },
         })),
-        createdAt: strategyWithAllocations!.createdAt?.toISOString() || new Date().toISOString(),
-        updatedAt: strategyWithAllocations!.updatedAt?.toISOString() || new Date().toISOString(),
+        createdAt: strategyWithAllocations?.createdAt?.toISOString() || new Date().toISOString(),
+        updatedAt: strategyWithAllocations?.updatedAt?.toISOString() || new Date().toISOString(),
       };
     }),
 
@@ -185,7 +185,7 @@ export const copyRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const { strategyId, name, description, status, riskParams, settings } = input;
 
       // Build update object
@@ -226,7 +226,7 @@ export const copyRouter = t.router({
     )
     .query(async ({ input, ctx }) => {
       const { strategyId, timeframe, granularity } = input;
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
 
       const perf = await copyService.getStrategyPerformance(strategyId, userId);
 
@@ -271,7 +271,8 @@ export const copyRouter = t.router({
               tradeCount: 0,
             });
           }
-          const entry = timeseriesByDay.get(dateKey)!;
+          const entry = timeseriesByDay.get(dateKey);
+          if (!entry) continue;
           entry.tradeCount++;
           if (order.pnl) {
             entry.dailyPnl += Number(order.pnl);
@@ -321,9 +322,9 @@ export const copyRouter = t.router({
     )
     .query(async ({ input, ctx }) => {
       const { strategyId, limit, offset, status } = input;
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
 
-      const { orders, total } = await copyService.getStrategyOrders({
+      const { orders } = await copyService.getStrategyOrders({
         strategyId,
         userId,
         limit,
@@ -365,7 +366,7 @@ export const copyRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const { strategyId, allocations } = input;
 
       // Validate allocations sum to 1.0
@@ -401,7 +402,7 @@ export const copyRouter = t.router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const db = getDatabaseConnection().getDatabase();
 
       // Get top traders
@@ -444,6 +445,7 @@ export const copyRouter = t.router({
       }
 
       // Call AI service
+      // biome-ignore lint/suspicious/noImplicitAnyLet: AI recommendation shape is dynamic
       let recommendation;
       try {
         recommendation = await getAiRecommendations({
@@ -520,7 +522,7 @@ export const copyRouter = t.router({
   approveRecommendation: protectedProcedure
     .input(z.object({ recommendationId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const db = getDatabaseConnection().getDatabase();
 
       const [recommendation] = await db
@@ -583,7 +585,7 @@ export const copyRouter = t.router({
   rejectRecommendation: protectedProcedure
     .input(z.object({ recommendationId: z.string(), notes: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const db = getDatabaseConnection().getDatabase();
 
       const [recommendation] = await db
@@ -619,11 +621,12 @@ export const copyRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const { strategyId, action } = input;
 
       // Ownership is enforced inside start/pause/stopStrategy; an error bubbles
       // up if the user does not own this strategy.
+      // biome-ignore lint/suspicious/noImplicitAnyLet: strategy shape varies by action
       let updatedStrategy;
       switch (action) {
         case 'start':
@@ -641,19 +644,19 @@ export const copyRouter = t.router({
         success: true,
         strategyId,
         action,
-        status: updatedStrategy!.status,
-        timestamp: updatedStrategy!.updatedAt?.toISOString() || new Date().toISOString(),
+        status: updatedStrategy?.status,
+        timestamp: updatedStrategy?.updatedAt?.toISOString() || new Date().toISOString(),
       };
     }),
 
   // Generate a new agent wallet for the user
   generateAgentWallet: protectedProcedure.mutation(async ({ ctx }) => {
-    const userId = ctx.user!.userId;
+    const userId = ctx.user?.userId;
 
     let encryptionKey: Buffer;
     try {
       encryptionKey = getEncryptionKey();
-    } catch (error) {
+    } catch (_error) {
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Server encryption not configured',
@@ -685,7 +688,7 @@ export const copyRouter = t.router({
   verifyAgentApproval: protectedProcedure
     .input(z.object({ walletId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const db = getDatabaseConnection().getDatabase();
 
       const [wallet] = await db

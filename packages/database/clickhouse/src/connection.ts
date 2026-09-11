@@ -180,7 +180,7 @@ export class ClickHouseConnection {
     }
 
     try {
-      const insertQuery = `INSERT INTO ${table} FORMAT ${format}`;
+      const _insertQuery = `INSERT INTO ${table} FORMAT ${format}`;
 
       await this.client.insert({
         table,
@@ -288,8 +288,8 @@ export function createClickHouseConnection(config?: ClickHouseConfig): ClickHous
       database: process.env.CLICKHOUSE_DB || 'hyperdash_analytics',
       username: process.env.CLICKHOUSE_USER || 'default',
       password: process.env.CLICKHOUSE_PASSWORD || '',
-      maxOpenConnections: parseInt(process.env.CLICKHOUSE_MAX_CONNECTIONS || '10'),
-      requestTimeout: parseInt(process.env.CLICKHOUSE_REQUEST_TIMEOUT || '30000'),
+      maxOpenConnections: parseInt(process.env.CLICKHOUSE_MAX_CONNECTIONS || '10', 10),
+      requestTimeout: parseInt(process.env.CLICKHOUSE_REQUEST_TIMEOUT || '30000', 10),
       compression: process.env.CLICKHOUSE_COMPRESSION !== 'false',
       ...config,
     };

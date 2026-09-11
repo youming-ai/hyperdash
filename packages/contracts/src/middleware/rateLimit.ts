@@ -46,7 +46,7 @@ class RateLimiter {
     retryAfter?: number;
   } {
     const now = Date.now();
-    const windowStart = now - config.windowMs;
+    const _windowStart = now - config.windowMs;
 
     let entry = this.storage.get(key);
 
@@ -154,7 +154,7 @@ process.on('SIGTERM', () => {
 
 export function createRateLimitMiddleware(config: RateLimitConfig) {
   const {
-    windowMs,
+    // windowMs is configured but not used directly here
     maxRequests,
     keyGenerator,
     message,

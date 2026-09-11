@@ -176,7 +176,7 @@ export class HyperDashCache {
 
   async set<T = any>(key: string, value: T, options: CacheOptions = {}): Promise<void> {
     try {
-      const { ttl = 300, tags = [], compress = false } = options;
+      const { ttl = 300, tags = [] } = options;
       const serialized = JSON.stringify(value);
 
       // Store in Redis

@@ -3,13 +3,13 @@ import postgres from 'postgres';
 import * as schema from './schema';
 
 const connectionString =
-  process.env.DATABASE_URL || 'postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash';
+  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/hyperdash';
 
 async function runMigrations() {
   console.log('Starting PostgreSQL migrations...');
 
   const client = postgres(connectionString, { max: 1 });
-  const db = drizzle(client, { schema });
+  const _db = drizzle(client, { schema });
 
   try {
     // Create all tables using Drizzle

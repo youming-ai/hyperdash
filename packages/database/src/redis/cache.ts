@@ -215,13 +215,13 @@ export class CacheManager {
   }> {
     try {
       const info = await this.redis.getInfo();
-      const keys = parseInt(info.db0?.split(',')[0]?.split('=')[1] || '0');
+      const keys = parseInt(info.db0?.split(',')[0]?.split('=')[1] || '0', 10);
       const memory = info.used_memory_human || '0B';
 
       // These would need to be tracked separately in a real implementation
       const hits = 0;
       const misses = 0;
-      const hitRate = hits + misses > 0 ? ((hits / (hits + misses)) * 100).toFixed(2) + '%' : '0%';
+      const hitRate = hits + misses > 0 ? `${((hits / (hits + misses)) * 100).toFixed(2)}%` : '0%';
 
       return { keys, memory, hits, misses, hitRate };
     } catch (error) {
@@ -259,7 +259,9 @@ export class CacheFactory {
       CacheFactory.instances.set(key, new CacheManager(ttl));
     }
 
-    return CacheFactory.instances.get(key)!;
+    const instance = CacheFactory.instances.get(key);
+    if (!instance) throw new Error(`Cache instance not found: ${key}`);
+    return instance;
   }
 
   static getShortLivedCache(): CacheManager {

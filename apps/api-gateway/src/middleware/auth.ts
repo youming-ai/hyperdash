@@ -1,4 +1,4 @@
-import type { AsyncContext, Context } from '@hyperdash/contracts';
+import type { AsyncContext } from '@hyperdash/contracts';
 import { TRPCError } from '@trpc/server';
 import { getAuthService } from '../services/auth';
 
@@ -17,7 +17,7 @@ export const authMiddleware = async ({
   try {
     // Get token from Authorization header
     const authHeader = ctx.req?.headers?.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith('Bearer ')) {
       throw new TRPCError({
         code: 'UNAUTHORIZED',
         message: 'Missing or invalid authorization header',
@@ -69,7 +69,7 @@ export const optionalAuthMiddleware = async ({
 }) => {
   try {
     const authHeader = ctx.req?.headers?.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       if (token) {
         const authService = getAuthService();

@@ -1,66 +1,148 @@
 @import "tailwindcss";
 
-/* CSS Variables for theming */
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222.2 84% 4.9%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96%;
-  --accent-foreground: 222.2 84% 4.9%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-  --radius: 0.5rem;
-  --success: 142 76% 36%;
-  --warning: 38 92% 50%;
-}
+/*
+ * hyperdash.com-inspired design system v2
+ * Warm-dark terminal aesthetic: gray-16 base, elevated panels with 1px
+ * shadow borders, 4-tier foreground, orange accent, soft green/rose for
+ * up/down, dense tables, dock tabs, left icon rail app shell.
+ */
 
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 210 40% 98%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 212.7 26.8% 83.9%;
-  --success: 142 76% 36%;
+:root {
+  /* ---- hyperdash gray scale (warm grays) ---- */
+  --hd-gray-1: #f7f6f5;
+  --hd-gray-3: #d5d1cd;
+  --hd-gray-5: #b8b0a4;
+  --hd-gray-7: #928d86;
+  --hd-gray-9: #726e68;
+  --hd-gray-10: #524f4a;
+  --hd-gray-11: #42403c;
+  --hd-gray-12: #33312f;
+  --hd-gray-13: #262422;
+  --hd-gray-13b: #1d1a18;
+  --hd-gray-14: #191613;
+  --hd-gray-15: #141210;
+  --hd-gray-16: #100e0a;
+
+  /* ---- semantic palette ---- */
+  --hd-accent: #ed3602; /* orange-9 — links, active states, brand */
+  --hd-accent-soft: #fd5e32; /* orange-7 — hover */
+  --hd-up: #5cc09b; /* green-7 */
+  --hd-down: #d44b62; /* rose-7 */
+
+  /* ---- app theme (HSL triples for hsl(var()) usage) ---- */
+  --background: 40 23% 5%; /* gray-16 */
+  --foreground: 0 0% 100%; /* fg-primary */
+  --card: 30 11% 7%; /* gray-15 */
+  --card-foreground: 0 0% 100%;
+  --popover: 30 14% 9%; /* gray-14 */
+  --popover-foreground: 0 0% 100%;
+  --border: 30 6% 14%; /* gray-13 — subtle elevated edge */
+  --input: 30 6% 14%;
+  --primary: 13 89% 47%; /* orange-9 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 30 6% 14%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 30 14% 9%; /* gray-14 */
+  --muted-foreground: 33 9% 82%; /* gray-3 — fg-secondary */
+  --accent: 30 14% 9%;
+  --accent-foreground: 0 0% 100%;
+  --success: 155 26% 55%;
+  --success-foreground: 0 0% 100%;
+  --destructive: 349 59% 56%;
+  --destructive-foreground: 0 0% 100%;
   --warning: 38 92% 50%;
+  --fg-tertiary: 35 5% 55%; /* gray-7 */
+  --fg-quaternary: 33 5% 43%; /* gray-9 */
+  --fg-accent: 13 89% 47%;
+  --radius: 0.5rem;
+  --ring: 13 89% 47%;
 }
 
 * {
   border-color: hsl(var(--border));
 }
 
+html {
+  color-scheme: dark;
+  --panel-shadow: 0 0 0 1px hsl(var(--border));
+}
+
+/* ==========================================================================
+   Light theme — hyperdash light grays (gray-1/2 base, white panels)
+   ========================================================================== */
+
+html.light {
+  color-scheme: light;
+  --background: 33 9% 95%; /* ~#f2f1ef */
+  --foreground: 30 6% 11%; /* gray-13b */
+  --card: 0 0% 100%; /* white panels */
+  --card-foreground: 30 6% 11%;
+  --popover: 33 9% 96%;
+  --popover-foreground: 30 6% 11%;
+  --border: 33 8% 87%; /* ~#e2dfde */
+  --input: 33 8% 87%;
+  --primary: 13 89% 47%; /* same orange — works on white */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 33 8% 91%;
+  --secondary-foreground: 30 6% 11%;
+  --muted: 33 9% 93%;
+  --muted-foreground: 33 5% 43%; /* gray-9 — secondary text on light */
+  --accent: 33 9% 93%;
+  --accent-foreground: 30 6% 11%;
+  /* darker up/down for contrast on white */
+  --success: 157 67% 37%; /* ~#1f9d6c */
+  --destructive: 349 58% 49%; /* ~#c73550 */
+  --warning: 27 91% 37%;
+  --fg-tertiary: 33 5% 45%;
+  --fg-quaternary: 35 5% 55%;
+  --fg-accent: 13 89% 47%;
+  --ring: 13 89% 47%;
+  --panel-shadow: 0 0 0 1px hsl(var(--border)), 0 1px 3px rgba(16, 14, 10, 0.06);
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Utility classes */
+::selection {
+  background: hsl(var(--primary) / 0.35);
+}
+
+/* Monospace numbers everywhere they matter */
+.font-mono,
+.num,
+.tabular-nums {
+  font-family:
+    "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ---- scrollbars (dark, slim) ---- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- legacy utility aliases ---- */
 .text-success {
   color: hsl(var(--success));
 }
@@ -70,9 +152,299 @@ body {
 .text-destructive {
   color: hsl(var(--destructive));
 }
+.text-fg-tertiary {
+  color: hsl(var(--fg-tertiary));
+}
+.text-fg-quaternary {
+  color: hsl(var(--fg-quaternary));
+}
+.text-fg-accent {
+  color: hsl(var(--fg-accent));
+}
 .bg-card {
   background-color: hsl(var(--card));
 }
 .border-border {
   border-color: hsl(var(--border));
+}
+
+/* ==========================================================================
+   Panel system — elevated surfaces with 1px shadow borders
+   ========================================================================== */
+
+.panel {
+  background-color: hsl(var(--card));
+  border-radius: var(--radius);
+  box-shadow: var(--panel-shadow);
+}
+
+.panel-header {
+  border-bottom: 1px solid hsl(var(--border));
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+/* ==========================================================================
+   Table system — dense leaderboard/market tables
+   ========================================================================== */
+
+.data-table {
+  width: 100%;
+  font-size: 12.5px;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 8px 12px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--fg-tertiary));
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.data-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  white-space: nowrap;
+}
+
+.data-table tbody tr {
+  transition: background-color 0.1s ease;
+}
+.data-table tbody tr:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* numeric columns */
+.data-table .num-col {
+  text-align: right;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Dock tabs — horizontal strips with faded edges, accent active state
+   ========================================================================== */
+
+.dock {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 3px;
+  background: hsl(var(--muted) / 0.4);
+  border-radius: var(--radius);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent
+  );
+}
+
+.dock-tab {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: hsl(var(--fg-tertiary));
+  transition:
+    color 0.12s ease,
+    background-color 0.12s ease;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dock-tab:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.7);
+}
+.dock-tab[data-active="true"] {
+  color: hsl(var(--foreground));
+  background: hsl(var(--secondary));
+  box-shadow: 0 0 0 1px hsl(var(--border));
+}
+.dock-tab[data-active="true"].dock-tab-accent {
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary) / 0.85);
+  box-shadow: none;
+}
+
+.dock-scroll {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 20px,
+    #000 calc(100% - 20px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 20px,
+    #000 calc(100% - 20px),
+    transparent
+  );
+}
+
+/* ==========================================================================
+   Badges & status
+   ========================================================================== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.badge-up {
+  color: hsl(var(--success));
+  background: hsl(var(--success) / 0.12);
+}
+.badge-down {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.12);
+}
+.badge-neutral {
+  color: hsl(var(--fg-tertiary));
+  background: hsl(var(--muted));
+}
+.badge-accent {
+  color: hsl(var(--fg-accent));
+  background: hsl(var(--primary) / 0.12);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.status-dot-live {
+  background: hsl(var(--success));
+  box-shadow: 0 0 0 3px hsl(var(--success) / 0.15);
+}
+.status-dot-warn {
+  background: hsl(var(--warning));
+  box-shadow: 0 0 0 3px hsl(var(--warning) / 0.15);
+}
+
+/* ==========================================================================
+   App shell — left icon rail + top bar
+   ========================================================================== */
+
+.app-rail {
+  position: fixed;
+  inset-block: 0;
+  left: 0;
+  z-index: 40;
+  display: none;
+  width: 56px;
+  flex-direction: column;
+  align-items: center;
+  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  padding-block: 14px;
+  gap: 6px;
+}
+@media (min-width: 768px) {
+  .app-rail {
+    display: flex;
+  }
+}
+
+.rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  color: hsl(var(--fg-tertiary));
+  transition:
+    color 0.12s ease,
+    background-color 0.12s ease;
+}
+.rail-item:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+}
+.rail-item[data-active="true"] {
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary) / 0.9);
+}
+.rail-item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  width: 2px;
+  height: 18px;
+  border-radius: 2px;
+  background: hsl(var(--primary));
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: 52px;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--background) / 0.85);
+  backdrop-filter: blur(12px);
+}
+
+/* ==========================================================================
+   Motion
+   ========================================================================== */
+
+@keyframes hd-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: hd-fade-in 0.3s ease-out;
+}
+
+@keyframes hd-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.animate-live {
+  animation: hd-pulse 2s ease-in-out infinite;
 }

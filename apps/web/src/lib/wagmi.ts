@@ -1,4 +1,4 @@
-import { createConfig, createStorage, http } from 'wagmi';
+import { cookieStorage, createConfig, createStorage, http } from 'wagmi';
 import { arbitrum, mainnet } from 'wagmi/chains';
 import { coinbaseWallet, injected, walletConnect } from 'wagmi/connectors';
 
@@ -23,8 +23,9 @@ export const hyperliquid = {
 
 export const wagmiConfig = createConfig({
   chains: [arbitrum, mainnet],
+  ssr: true,
   connectors: [injected(), walletConnect({ projectId }), coinbaseWallet({ appName: 'HyperDash' })],
-  storage: createStorage({ storage: localStorage }),
+  storage: createStorage({ storage: cookieStorage }),
   transports: {
     [arbitrum.id]: http(),
     [mainnet.id]: http(),

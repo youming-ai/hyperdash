@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
@@ -24,7 +24,7 @@ export function decryptKey(encryptedBase64: string, encryptionKey: Buffer): stri
 
 export function getEncryptionKey(): Buffer {
   const hex = process.env.ENCRYPTION_KEY;
-  if (!hex || hex.length !== 64) {
+  if (hex?.length !== 64) {
     throw new Error('ENCRYPTION_KEY must be a 64-char hex string (32 bytes)');
   }
   return Buffer.from(hex, 'hex');

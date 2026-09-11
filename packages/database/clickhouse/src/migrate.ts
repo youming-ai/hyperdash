@@ -199,5 +199,5 @@ if (require.main === module) {
     });
 }
 
-export { runClickHouseMigrations, createOptimizations };
+export { createOptimizations, runClickHouseMigrations };
 export default runClickHouseMigrations;

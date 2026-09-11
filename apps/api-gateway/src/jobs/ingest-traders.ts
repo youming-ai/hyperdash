@@ -307,7 +307,7 @@ export async function runIngestion(args: string[] = []): Promise<void> {
   });
 
   // Print summary
-  console.log('\n' + '='.repeat(50));
+  console.log(`\n${'='.repeat(50)}`);
   console.log('📋 Ingestion Summary');
   console.log('='.repeat(50));
   console.log(`✅ Successful: ${result.successful}`);

@@ -34,7 +34,7 @@ export const marketRouter = t.router({
         limit: z.number().default(100),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async () => {
       return [];
     }),
 
@@ -47,7 +47,7 @@ export const marketRouter = t.router({
         binCount: z.number().default(50),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async () => {
       return [];
     }),
 
@@ -64,7 +64,7 @@ export const marketRouter = t.router({
   // Prices
   prices: publicProcedure
     .input(z.object({ symbols: z.array(z.string()).optional() }).optional())
-    .query(async ({ input }) => {
+    .query(async () => {
       return {};
     }),
 });

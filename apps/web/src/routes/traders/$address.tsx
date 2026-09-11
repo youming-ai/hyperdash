@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   Activity,
@@ -8,11 +9,11 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { z } from 'zod';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { trpc } from '@/lib/api/trpc';
-import { formatCompactNumber, formatPnL } from '@/lib/utils';
+import { Badge } from '~/components/ui/badge';
+import { Button } from '~/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card';
+import { api } from '~/lib/api-client';
+import { formatCompactNumber, formatPnL } from '~/lib/utils';
 
 // Type-safe route with address validation
 export const Route = createFileRoute('/traders/$address')({
@@ -21,6 +22,52 @@ export const Route = createFileRoute('/traders/$address')({
   }),
   component: TraderDetailPage,
 });
+
+interface TraderDetail {
+  address: string;
+  traderId: string;
+  nickname?: string;
+  isActive: boolean;
+  lastTradeAt: string | null;
+  equity: number;
+  pnl7d: number;
+  pnl30d: number;
+  winRate: number;
+  sharpeRatio: number;
+  maxDrawdown: number;
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  avgPositionSizeUsd: number;
+  longTrades: number;
+  shortTrades: number;
+  avgHoldTimeSeconds: number;
+}
+
+interface Position {
+  id: string;
+  symbol: string;
+  side: string;
+  quantity: number;
+  positionValueUsd: number;
+  unrealizedPnl: number;
+}
+
+interface Trade {
+  symbol: string;
+  side: string;
+  size: number;
+  entryPrice: number;
+  exitPrice: number;
+  pnl: number;
+  closedAt: string | null;
+}
+
+function isRecentlyActive(lastTradeAt: string | null | undefined): boolean {
+  if (!lastTradeAt) return false;
+  const ms = Date.now() - new Date(lastTradeAt).getTime();
+  return ms >= 0 && ms < 7 * 24 * 60 * 60 * 1000;
+}
 
 function StatCard({
   label,
@@ -59,32 +106,119 @@ function TraderDetailPage() {
   const { address } = Route.useParams();
 
   // Fetch trader profile data
-  const { data: trader, isLoading: isLoadingProfile } =
-    // @ts-expect-error - AppRouter is any type until proper type generation is set up
-    trpc.traders.byAddress.useQuery(
-      { address },
-      {
-        staleTime: 30_000, // 30 seconds
-      },
-    );
-
-  // Fetch trader positions
-  // @ts-expect-error - AppRouter is any type until proper type generation is set up
-  const { data: positions = [], isLoading: isLoadingPositions } = trpc.traders.positions.useQuery({
-    address,
+  const { data: traderResponse, isLoading: isLoadingProfile } = useQuery({
+    queryKey: ['trader', address],
+    queryFn: async () => {
+      const res = await api.traders[':address'].$get({ param: { address } });
+      if (!res.ok) throw new Error('failed to load trader');
+      const body = (await res.json()) as unknown as {
+        trader: {
+          address: string;
+          traderId: string;
+          lastTradeAt: string | null;
+          equityUsd?: string | number | null;
+          pnl7d?: string | number | null;
+          pnl30d?: string | number | null;
+          pnlAll?: string | number | null;
+          winrate?: string | number | null;
+          sharpeRatio?: string | number | null;
+          maxDrawdown?: string | number | null;
+          totalTrades?: number | null;
+          winningTrades?: number | null;
+          losingTrades?: number | null;
+          avgPositionSizeUsd?: string | number | null;
+          longTrades?: number | null;
+          shortTrades?: number | null;
+          avgHoldTimeSeconds?: number | null;
+        };
+      };
+      return body;
+    },
+    staleTime: 30_000, // 30 seconds
   });
 
-  // Fetch trader trades
-  const { data: tradesData, isLoading: isLoadingTrades } =
-    // @ts-expect-error - AppRouter is any type until proper type generation is set up
-    trpc.traders.trades.useQuery(
-      { address, limit: 10 },
-      {
-        staleTime: 30_000,
-      },
-    );
+  const trader: TraderDetail | undefined = traderResponse?.trader
+    ? {
+        ...traderResponse.trader,
+        isActive: isRecentlyActive(traderResponse.trader.lastTradeAt),
+        equity: Number(traderResponse.trader.equityUsd ?? 0),
+        pnl7d: Number(traderResponse.trader.pnl7d ?? 0),
+        pnl30d: Number(traderResponse.trader.pnl30d ?? 0),
+        winRate: Number(traderResponse.trader.winrate ?? 0),
+        sharpeRatio: Number(traderResponse.trader.sharpeRatio ?? 0),
+        maxDrawdown: Number(traderResponse.trader.maxDrawdown ?? 0),
+        totalTrades: Number(traderResponse.trader.totalTrades ?? 0),
+        winningTrades: Number(traderResponse.trader.winningTrades ?? 0),
+        losingTrades: Number(traderResponse.trader.losingTrades ?? 0),
+        avgPositionSizeUsd: Number(traderResponse.trader.avgPositionSizeUsd ?? 0),
+        longTrades: Number(traderResponse.trader.longTrades ?? 0),
+        shortTrades: Number(traderResponse.trader.shortTrades ?? 0),
+        avgHoldTimeSeconds: Number(traderResponse.trader.avgHoldTimeSeconds ?? 0),
+      }
+    : undefined;
 
-  const trades = tradesData?.trades ?? [];
+  // Fetch trader positions
+  const { data: positionsResponse, isLoading: isLoadingPositions } = useQuery({
+    queryKey: ['trader', address, 'positions'],
+    queryFn: async () => {
+      const res = await api.traders[':address'].positions.$get({ param: { address } });
+      if (!res.ok) throw new Error('failed to load positions');
+      const body = (await res.json()) as unknown as {
+        positions: Array<{
+          id: string;
+          symbol: string;
+          side: string;
+          quantity: string | number;
+          positionValueUsd: string | number;
+          unrealizedPnl: string | number;
+        }>;
+      };
+      return body;
+    },
+  });
+
+  const positions: Position[] =
+    positionsResponse?.positions.map((position) => ({
+      ...position,
+      quantity: Number(position.quantity),
+      positionValueUsd: Number(position.positionValueUsd),
+      unrealizedPnl: Number(position.unrealizedPnl),
+    })) ?? [];
+
+  // Fetch trader trades
+  const { data: tradesResponse, isLoading: isLoadingTrades } = useQuery({
+    queryKey: ['trader', address, 'trades'],
+    queryFn: async () => {
+      const res = await api.traders[':address'].trades.$get({
+        param: { address },
+        query: { limit: '10' },
+      });
+      if (!res.ok) throw new Error('failed to load trades');
+      const body = (await res.json()) as unknown as {
+        trades: Array<{
+          symbol: string;
+          side: string;
+          size: string | number;
+          entryPrice: string | number | null;
+          exitPrice: string | number | null;
+          pnl: string | number;
+          closedAt: string | null;
+        }>;
+      };
+      return body;
+    },
+    staleTime: 30_000,
+  });
+
+  const trades: Trade[] =
+    tradesResponse?.trades.map((trade) => ({
+      ...trade,
+      size: Number(trade.size),
+      entryPrice: Number(trade.entryPrice ?? 0),
+      exitPrice: Number(trade.exitPrice ?? 0),
+      pnl: Number(trade.pnl ?? 0),
+      side: trade.side?.toUpperCase() ?? 'LONG',
+    })) ?? [];
 
   if (isLoadingProfile) {
     return (
@@ -162,7 +296,7 @@ function TraderDetailPage() {
             icon={AlertTriangle}
             negative
           />
-          <StatCard label="Total Trades" value={`${trader?.totalTrades?.toLocaleString()}`} />
+          <StatCard label="Total Trades" value={`${trader?.totalTrades.toLocaleString() ?? '0'}`} />
           <StatCard
             label="Avg Position Size"
             value={`$${formatCompactNumber(trader?.avgPositionSizeUsd ?? 0)}`}
@@ -199,7 +333,7 @@ function TraderDetailPage() {
               <p className="text-lg font-bold">
                 {trader?.totalTrades && trader.totalTrades > 1000
                   ? 'Very High'
-                  : trader.totalTrades && trader.totalTrades > 500
+                  : trader?.totalTrades && trader.totalTrades > 500
                     ? 'High'
                     : 'Moderate'}
               </p>
@@ -228,7 +362,7 @@ function TraderDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {positions.map((position: any) => (
+                {positions.map((position) => (
                   <tr key={position.id} className="border-t border-border">
                     <td className="px-4 py-3 font-medium">{position.symbol}</td>
                     <td className="px-4 py-3 capitalize">{position.side}</td>
@@ -273,8 +407,11 @@ function TraderDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.map((trade: any, i: number) => (
-                    <tr key={i} className="border-b border-[hsl(var(--border))] last:border-0">
+                  {trades.map((trade) => (
+                    <tr
+                      key={`${trade.symbol}-${trade.closedAt}`}
+                      className="border-b border-[hsl(var(--border))] last:border-0"
+                    >
                       <td className="py-3 font-medium">{trade.symbol}</td>
                       <td className="py-3">
                         <Badge
@@ -293,7 +430,7 @@ function TraderDetailPage() {
                         {formatPnL(trade.pnl)}
                       </td>
                       <td className="py-3 text-right text-sm opacity-60">
-                        {new Date(trade.closedAt).toLocaleDateString()}
+                        {trade.closedAt ? new Date(trade.closedAt).toLocaleDateString() : '—'}
                       </td>
                     </tr>
                   ))}

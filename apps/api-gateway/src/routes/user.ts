@@ -17,15 +17,15 @@ import { z } from 'zod';
 export const userRouter = t.router({
   // Get user profile
   profile: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.user!.userId;
+    const userId = ctx.user?.userId;
 
     // Implementation will query PostgreSQL for user profile
     // Mock data for now
     const mockProfile = {
       userId,
       email: 'user@example.com',
-      walletAddr: ctx.user!.walletAddr,
-      kycLevel: ctx.user!.kycLevel,
+      walletAddr: ctx.user?.walletAddr,
+      kycLevel: ctx.user?.kycLevel,
       status: 'active',
       preferences: {
         theme: 'dark',
@@ -94,7 +94,7 @@ export const userRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const updates = input;
 
       // Implementation will update user profile in PostgreSQL
@@ -111,7 +111,7 @@ export const userRouter = t.router({
 
   // Get user's agent wallets
   wallets: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.user!.userId;
+    const userId = ctx.user?.userId;
 
     // Implementation will query PostgreSQL for user's agent wallets
     // Mock data for now
@@ -180,11 +180,11 @@ export const userRouter = t.router({
           trade: z.boolean().default(true),
           withdraw: z.boolean().default(false),
         }),
-        metadata: z.record(z.any()).optional(),
+        metadata: z.record(z.string(), z.any()).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const { exchange, address, minOrderUsd, maxLeverage, permissions, metadata } = input;
 
       // Implementation will create agent wallet in PostgreSQL
@@ -219,7 +219,7 @@ export const userRouter = t.router({
     )
     .query(async ({ input, ctx }) => {
       const { status, limit } = input;
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
 
       // Implementation will query PostgreSQL for user's alerts
       // Mock data for now
@@ -265,7 +265,7 @@ export const userRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const { symbol, type, targetPrice, percentChange, repeat, expiresAt } = input;
 
       // Implementation will create alert in PostgreSQL
@@ -296,7 +296,7 @@ export const userRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const { alertId } = input;
 
       // Implementation will delete alert from PostgreSQL
@@ -322,7 +322,7 @@ export const userRouter = t.router({
     )
     .query(async ({ input, ctx }) => {
       const { type, read, limit, offset } = input;
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
 
       // Implementation will query PostgreSQL for notifications
       // Mock data for now
@@ -384,7 +384,7 @@ export const userRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const { notificationIds, markAll } = input;
 
       // Implementation will update notifications in PostgreSQL
@@ -414,7 +414,7 @@ export const userRouter = t.router({
     )
     .query(async ({ input, ctx }) => {
       const { limit, offset, symbol, strategyId } = input;
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
 
       // Implementation will query PostgreSQL for trading history
       // Mock data for now
@@ -444,7 +444,7 @@ export const userRouter = t.router({
     )
     .query(async ({ input, ctx }) => {
       const { timeframe } = input;
-      const userId = ctx.user!.userId;
+      const _userId = ctx.user?.userId;
 
       // Implementation will query both PostgreSQL and ClickHouse
       // Mock data for now

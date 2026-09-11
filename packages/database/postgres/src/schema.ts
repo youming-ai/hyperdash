@@ -1,3 +1,17 @@
+// Better Auth tables (generated via `bun run auth:generate`). Re-exported so the
+// Drizzle client built in the Worker includes auth tables alongside business tables.
+export {
+  account,
+  accountRelations,
+  session,
+  sessionRelations,
+  user,
+  userRelations,
+  verification,
+  walletAddress,
+  walletAddressRelations,
+} from './auth-schema';
+
 import {
   boolean,
   decimal,

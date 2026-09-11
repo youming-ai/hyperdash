@@ -183,9 +183,9 @@ export function createDatabaseConnection(config?: DatabaseConfig): DatabaseConne
       connectionString:
         process.env.DATABASE_URL ||
         'postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash',
-      maxConnections: parseInt(process.env.DATABASE_MAX_CONNECTIONS || '10'),
-      idleTimeout: parseInt(process.env.DATABASE_IDLE_TIMEOUT || '30000'),
-      connectTimeout: parseInt(process.env.DATABASE_CONNECT_TIMEOUT || '10000'),
+      maxConnections: parseInt(process.env.DATABASE_MAX_CONNECTIONS || '10', 10),
+      idleTimeout: parseInt(process.env.DATABASE_IDLE_TIMEOUT || '30000', 10),
+      connectTimeout: parseInt(process.env.DATABASE_CONNECT_TIMEOUT || '10000', 10),
       ...config,
     };
 
@@ -218,7 +218,8 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-export { DatabaseConnection as PostgresConnection };
-
 // Alias for consistency with the package exports
-export { createDatabaseConnection as createPostgresConnection };
+export {
+  createDatabaseConnection as createPostgresConnection,
+  DatabaseConnection as PostgresConnection,
+};

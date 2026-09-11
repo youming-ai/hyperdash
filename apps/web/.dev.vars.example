@@ -1,0 +1,6 @@
+# Local Worker secrets for `wrangler dev`. Copy to `.dev.vars` (gitignored) and fill in.
+# In production these are set with `wrangler secret put NAME`.
+BETTER_AUTH_SECRET="dev-secret-change-me-min-32-chars-long"
+RESEND_API_KEY="re_xxxxxxxx"
+EMAIL_FROM="noreply@localhost"
+SENTRY_DSN=""

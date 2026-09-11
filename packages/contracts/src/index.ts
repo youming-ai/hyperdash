@@ -10,6 +10,7 @@ export { createValidationMiddleware } from './middleware/validation';
 // Router exports
 export { marketRouter } from './routers/market';
 export { default as t, kycProcedure, protectedProcedure, publicProcedure, router } from './trpc';
+export type { AuthContext } from './types';
 export { type AsyncContext, type Context, createContext } from './types';
 export {
   AuthenticationError,

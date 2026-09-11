@@ -8,23 +8,23 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "migrate": "tsx src/migrate.ts",
-    "migrate:generate": "drizzle-kit generate:pg",
-    "migrate:push": "tsx push-migration.ts",
-    "seed": "tsx seed.ts",
+    "migrate": "bun src/migrate.ts",
+    "migrate:generate": "drizzle-kit generate",
+    "migrate:push": "bun push-migration.ts",
+    "seed": "bun seed.ts",
     "studio": "drizzle-kit studio",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "db:push": "drizzle-kit push --force"
   },
   "dependencies": {
     "@hyperdash/shared-types": "workspace:*",
-    "drizzle-orm": "^0.29.3",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.3",
-    "zod": "^3.22.4"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",
-    "drizzle-kit": "^0.20.7",
-    "tsx": "^4.6.2",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.3.3"
   }
 }

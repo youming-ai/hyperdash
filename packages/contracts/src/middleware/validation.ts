@@ -36,7 +36,7 @@ export function createValidationMiddleware<T extends z.ZodSchema>(
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Validation failed',
-          cause: error.errors,
+          cause: error.issues,
         });
       }
       throw error;

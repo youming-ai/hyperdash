@@ -84,10 +84,21 @@ class TokenManager {
   }
 }
 
-const tokenManager = new TokenManager();
+/**
+ * Lazy singleton — avoids a hard crash at import time when JWT_SECRET is not
+ * set (e.g. feed-only gateway deployments that never touch the legacy JWT
+ * auth paths). The error surfaces on first actual use instead.
+ */
+let tokenManager: TokenManager | null = null;
+function getTokenManager(): TokenManager {
+  if (!tokenManager) {
+    tokenManager = new TokenManager();
+  }
+  return tokenManager;
+}
 
 export async function createAuthContext(token: string): Promise<AuthContext> {
-  const payload = await tokenManager.verifyToken(token);
+  const payload = await getTokenManager().verifyToken(token);
 
   return {
     userId: payload.userId,
@@ -190,7 +201,8 @@ export const requireAdmin = createAuthMiddleware({
 
 // Token utilities
 export const TokenUtils = {
-  generateToken: (payload: Omit<JWTPayload, 'iat' | 'exp'>) => tokenManager.generateToken(payload),
-  verifyToken: (token: string) => tokenManager.verifyToken(token),
-  refreshToken: (token: string) => tokenManager.refreshToken(token),
+  generateToken: (payload: Omit<JWTPayload, 'iat' | 'exp'>) =>
+    getTokenManager().generateToken(payload),
+  verifyToken: (token: string) => getTokenManager().verifyToken(token),
+  refreshToken: (token: string) => getTokenManager().refreshToken(token),
 };

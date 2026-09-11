@@ -21,10 +21,8 @@ export interface RedisConfig {
 export class RedisClient {
   private client: Redis;
   private logger: LoggerLike;
-  private config: RedisConfig;
 
   constructor(config: RedisConfig, logger: LoggerLike) {
-    this.config = config;
     this.logger = logger;
     this.client = new Redis({
       host: config.host,

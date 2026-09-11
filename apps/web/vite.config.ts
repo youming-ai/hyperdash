@@ -1,22 +1,22 @@
 import { fileURLToPath, URL } from 'node:url';
+import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
-import { tanstackRouter } from '@tanstack/router-plugin/vite';
+import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-// https://vitejs.dev/config/
+// https://tanstack.com/start + Cloudflare Workers.
+// `cloudflare()` builds the Worker; it owns the framework's `ssr` environment.
 export default defineConfig({
   plugins: [
-    tanstackRouter({
-      target: 'react',
-      autoCodeSplitting: true,
-    }),
+    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    tanstackStart(),
     viteReact(),
     tailwindcss(),
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '~': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 });

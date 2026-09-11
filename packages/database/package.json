@@ -2,16 +2,30 @@
   "name": "@hyperdash/database",
   "version": "1.0.0",
   "description": "Database schemas and migrations for HyperDash platform",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./schema": {
+      "types": "./postgres/src/schema.ts",
+      "default": "./postgres/src/schema.ts"
+    },
+    "./auth-schema": {
+      "types": "./postgres/src/auth-schema.ts",
+      "default": "./postgres/src/auth-schema.ts"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "migrate": "cd postgres && npm run migrate && cd .. && tsx postgres/src/migrate-trader-stats.ts",
-    "migrate:postgres": "cd postgres && npm run migrate",
-    "migrate:trader-stats": "tsx postgres/src/migrate-trader-stats.ts",
-    "seed": "cd postgres && npm run seed",
+    "migrate": "cd postgres && bun run migrate && cd .. && bun postgres/src/migrate-trader-stats.ts && bun postgres/src/migrate-auth.ts",
+    "migrate:postgres": "cd postgres && bun run migrate",
+    "migrate:trader-stats": "bun postgres/src/migrate-trader-stats.ts",
+    "seed": "cd postgres && bun run seed",
     "type-check": "tsc --noEmit",
     "lint": "biome check src",
     "lint:fix": "biome check --write src"
@@ -19,18 +33,17 @@
   "dependencies": {
     "@types/pg": "^8.10.9",
     "@clickhouse/client": "^1.0.1",
-    "drizzle-orm": "^0.29.3",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.3",
     "pg": "^8.11.3",
     "redis": "^4.6.10",
     "ioredis": "^5.3.2",
-    "zod": "^3.22.4"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",
     "@types/ioredis": "^5.0.0",
-    "drizzle-kit": "^0.20.7",
-    "typescript": "^5.3.3",
-    "tsx": "^4.6.2"
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.3.3"
   }
 }

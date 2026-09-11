@@ -432,9 +432,7 @@ export function fillToTraderTradeRow(
  * bubble up as `HyperliquidApiError` so the ingestion job can decide whether
  * to retry (transient) or mark the address as permanently failing.
  */
-export async function fetchTraderData(
-  address: string,
-): Promise<{
+export async function fetchTraderData(address: string): Promise<{
   stats: TraderStatsSummary;
   fills: HyperliquidFill[];
   state: HyperliquidClearinghouseState | null;

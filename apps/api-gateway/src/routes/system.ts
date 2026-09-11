@@ -357,14 +357,14 @@ export const systemRouter = t.router({
           ? {
               database: {
                 host: process.env.POSTGRES_HOST || 'localhost',
-                port: Number.parseInt(process.env.POSTGRES_PORT || '5432'),
+                port: Number.parseInt(process.env.POSTGRES_PORT || '5432', 10),
                 maxConnections: 20,
                 sslEnabled: false,
                 version: '15.4',
               },
               cache: {
                 host: process.env.REDIS_HOST || 'localhost',
-                port: Number.parseInt(process.env.REDIS_PORT || '6379'),
+                port: Number.parseInt(process.env.REDIS_PORT || '6379', 10),
                 maxMemory: 256000000, // 256MB
                 ttl: 300,
                 version: '7.2',
@@ -383,7 +383,7 @@ export const systemRouter = t.router({
                 version: '1.0.0',
               },
               apiGateway: {
-                port: Number.parseInt(process.env.PORT || '3000'),
+                port: Number.parseInt(process.env.PORT || '3000', 10),
                 rateLimit: '100/minute',
                 jwtExpiry: 86400, // 24 hours
                 version: '1.0.0',
@@ -405,7 +405,7 @@ export const systemRouter = t.router({
     .input(
       z.object({
         service: z.enum(['database', 'cache', 'streaming', 'copyEngine', 'apiGateway']),
-        config: z.record(z.any()),
+        config: z.record(z.string(), z.any()),
       }),
     )
     .mutation(async ({ input, ctx }) => {

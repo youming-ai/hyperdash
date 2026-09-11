@@ -10,20 +10,33 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as TradersIndexRouteImport } from './routes/traders/index'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as TerminalRouteImport } from './routes/terminal'
+import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as StrategiesIndexRouteImport } from './routes/strategies/index'
-import { Route as TradersAddressRouteImport } from './routes/traders/$address'
-import { Route as StrategiesNewRouteImport } from './routes/strategies/new'
 import { Route as StrategiesIdRouteImport } from './routes/strategies/$id'
+import { Route as StrategiesNewRouteImport } from './routes/strategies/new'
+import { Route as TradersIndexRouteImport } from './routes/traders/index'
+import { Route as TradersAddressRouteImport } from './routes/traders/$address'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TradersIndexRoute = TradersIndexRouteImport.update({
-  id: '/traders/',
-  path: '/traders/',
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TerminalRoute = TerminalRouteImport.update({
+  id: '/terminal',
+  path: '/terminal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StrategiesIndexRoute = StrategiesIndexRouteImport.update({
@@ -31,9 +44,9 @@ const StrategiesIndexRoute = StrategiesIndexRouteImport.update({
   path: '/strategies/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TradersAddressRoute = TradersAddressRouteImport.update({
-  id: '/traders/$address',
-  path: '/traders/$address',
+const StrategiesIdRoute = StrategiesIdRouteImport.update({
+  id: '/strategies/$id',
+  path: '/strategies/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StrategiesNewRoute = StrategiesNewRouteImport.update({
@@ -41,22 +54,33 @@ const StrategiesNewRoute = StrategiesNewRouteImport.update({
   path: '/strategies/new',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StrategiesIdRoute = StrategiesIdRouteImport.update({
-  id: '/strategies/$id',
-  path: '/strategies/$id',
+const TradersIndexRoute = TradersIndexRouteImport.update({
+  id: '/traders/',
+  path: '/traders/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TradersAddressRoute = TradersAddressRouteImport.update({
+  id: '/traders/$address',
+  path: '/traders/$address',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/terminal': typeof TerminalRoute
+  '/api/$': typeof ApiSplatRoute
   '/strategies/$id': typeof StrategiesIdRoute
   '/strategies/new': typeof StrategiesNewRoute
   '/traders/$address': typeof TradersAddressRoute
-  '/strategies': typeof StrategiesIndexRoute
-  '/traders': typeof TradersIndexRoute
+  '/strategies/': typeof StrategiesIndexRoute
+  '/traders/': typeof TradersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/terminal': typeof TerminalRoute
+  '/api/$': typeof ApiSplatRoute
   '/strategies/$id': typeof StrategiesIdRoute
   '/strategies/new': typeof StrategiesNewRoute
   '/traders/$address': typeof TradersAddressRoute
@@ -66,6 +90,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/terminal': typeof TerminalRoute
+  '/api/$': typeof ApiSplatRoute
   '/strategies/$id': typeof StrategiesIdRoute
   '/strategies/new': typeof StrategiesNewRoute
   '/traders/$address': typeof TradersAddressRoute
@@ -76,14 +103,20 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/analytics'
+    | '/terminal'
+    | '/api/$'
     | '/strategies/$id'
     | '/strategies/new'
     | '/traders/$address'
-    | '/strategies'
-    | '/traders'
+    | '/strategies/'
+    | '/traders/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/analytics'
+    | '/terminal'
+    | '/api/$'
     | '/strategies/$id'
     | '/strategies/new'
     | '/traders/$address'
@@ -92,6 +125,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/analytics'
+    | '/terminal'
+    | '/api/$'
     | '/strategies/$id'
     | '/strategies/new'
     | '/traders/$address'
@@ -101,6 +137,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalyticsRoute: typeof AnalyticsRoute
+  TerminalRoute: typeof TerminalRoute
+  ApiSplatRoute: typeof ApiSplatRoute
   StrategiesIdRoute: typeof StrategiesIdRoute
   StrategiesNewRoute: typeof StrategiesNewRoute
   TradersAddressRoute: typeof TradersAddressRoute
@@ -117,32 +156,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/traders/': {
-      id: '/traders/'
-      path: '/traders'
-      fullPath: '/traders'
-      preLoaderRoute: typeof TradersIndexRouteImport
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terminal': {
+      id: '/terminal'
+      path: '/terminal'
+      fullPath: '/terminal'
+      preLoaderRoute: typeof TerminalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/strategies/': {
       id: '/strategies/'
       path: '/strategies'
-      fullPath: '/strategies'
+      fullPath: '/strategies/'
       preLoaderRoute: typeof StrategiesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/traders/$address': {
-      id: '/traders/$address'
-      path: '/traders/$address'
-      fullPath: '/traders/$address'
-      preLoaderRoute: typeof TradersAddressRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/strategies/new': {
-      id: '/strategies/new'
-      path: '/strategies/new'
-      fullPath: '/strategies/new'
-      preLoaderRoute: typeof StrategiesNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/strategies/$id': {
@@ -152,11 +191,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StrategiesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/strategies/new': {
+      id: '/strategies/new'
+      path: '/strategies/new'
+      fullPath: '/strategies/new'
+      preLoaderRoute: typeof StrategiesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/traders/': {
+      id: '/traders/'
+      path: '/traders'
+      fullPath: '/traders/'
+      preLoaderRoute: typeof TradersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/traders/$address': {
+      id: '/traders/$address'
+      path: '/traders/$address'
+      fullPath: '/traders/$address'
+      preLoaderRoute: typeof TradersAddressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalyticsRoute: AnalyticsRoute,
+  TerminalRoute: TerminalRoute,
+  ApiSplatRoute: ApiSplatRoute,
   StrategiesIdRoute: StrategiesIdRoute,
   StrategiesNewRoute: StrategiesNewRoute,
   TradersAddressRoute: TradersAddressRoute,
@@ -166,3 +229,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

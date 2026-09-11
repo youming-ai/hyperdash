@@ -8,18 +8,17 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "migrate": "tsx migrate.ts",
+    "migrate": "bun migrate.ts",
     "type-check": "tsc --noEmit",
-    "query": "tsx query-runner.ts"
+    "query": "bun query-runner.ts"
   },
   "dependencies": {
     "@clickhouse/client": "^1.0.1",
     "@hyperdash/shared-types": "workspace:*",
-    "zod": "^3.22.4"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",
-    "tsx": "^4.6.2",
     "typescript": "^5.3.3"
   }
 }

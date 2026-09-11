@@ -185,7 +185,7 @@ export class ErrorHandler {
   }
 
   static handleValidationError(error: ZodError): never {
-    const fieldErrors = error.errors.map((err) => ({
+    const fieldErrors = error.issues.map((err) => ({
       field: err.path.join('.'),
       message: err.message,
       code: err.code,
@@ -216,7 +216,7 @@ export class ErrorHandler {
         const retryAfter = error.response.headers['retry-after'];
         throw new RateLimitError(
           `${service} rate limit exceeded`,
-          retryAfter ? parseInt(retryAfter) : undefined,
+          retryAfter ? parseInt(retryAfter, 10) : undefined,
         );
       }
 

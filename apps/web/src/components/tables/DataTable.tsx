@@ -128,6 +128,7 @@ export function DataTable<TData, TValue>({
         </div>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
             className="px-3 py-1.5 text-sm rounded-md border border-[hsl(var(--border))] disabled:opacity-40 hover:bg-[hsl(var(--accent))] transition-colors"
@@ -138,6 +139,7 @@ export function DataTable<TData, TValue>({
             Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
           </span>
           <button
+            type="button"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
             className="px-3 py-1.5 text-sm rounded-md border border-[hsl(var(--border))] disabled:opacity-40 hover:bg-[hsl(var(--accent))] transition-colors"

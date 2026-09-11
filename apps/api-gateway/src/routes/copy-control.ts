@@ -72,7 +72,7 @@ export const copyControlRouter = t.router({
   killStrategy: protectedProcedure
     .input(z.object({ strategyId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
       const db = getDatabaseConnection().getDatabase();
 
       const [strategy] = await db

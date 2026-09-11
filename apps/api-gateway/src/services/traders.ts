@@ -1,6 +1,6 @@
 import type { TraderStats, TraderTrades } from '@hyperdash/database';
 import { traderPositions, traderStats, traderTrades } from '@hyperdash/database';
-import { and, asc, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, sql } from 'drizzle-orm';
 import { getDatabaseConnection } from './connection';
 
 export type Timeframe = '7d' | '30d' | '90d' | 'all';
@@ -337,7 +337,7 @@ export async function searchTraders(options: SearchTradersOptions = {}): Promise
     .select()
     .from(traderStats)
     .where(
-      sql`${traderStats.address} ILIKE ${'%' + query + '%'} OR ${traderStats.metadata}->>'nickname' ILIKE ${'%' + query + '%'}`,
+      sql`${traderStats.address} ILIKE ${`%${query}%`} OR ${traderStats.metadata}->>'nickname' ILIKE ${`%${query}%`}`,
     )
     .orderBy(desc(traderStats.pnl7d))
     .limit(limit)

@@ -1,5 +1,5 @@
+import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
-import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import type { Logger } from 'winston';
 
@@ -235,7 +235,7 @@ export class AuthService {
    */
   async revokeAllUserTokens(userId: string): Promise<void> {
     let revokedCount = 0;
-    for (const [tokenId, tokenData] of this.refreshTokens.entries()) {
+    for (const [_tokenId, tokenData] of this.refreshTokens.entries()) {
       if (tokenData.userId === userId && !tokenData.isRevoked) {
         tokenData.isRevoked = true;
         revokedCount++;
@@ -411,7 +411,7 @@ export class AuthService {
    */
   generateNonce(): string {
     const nonce = crypto.randomBytes(16).toString('hex');
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const _expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     // Store nonce with expiration (in a real implementation, this would be in Redis/database)
     return nonce;

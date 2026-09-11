@@ -22,14 +22,14 @@ export class RedisConnection {
   constructor(config: RedisConfig = {}) {
     this.config = {
       host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
       password: process.env.REDIS_PASSWORD || undefined,
-      database: parseInt(process.env.REDIS_DB || '0'),
+      database: parseInt(process.env.REDIS_DB || '0', 10),
       maxRetries: 3,
       retryDelayOnFailover: 100,
       lazyConnect: true,
       keyPrefix: process.env.REDIS_KEY_PREFIX || 'hyperdash:',
-      ttl: parseInt(process.env.REDIS_DEFAULT_TTL || '300'), // 5 minutes default
+      ttl: parseInt(process.env.REDIS_DEFAULT_TTL || '300', 10), // 5 minutes default
       ...config,
     };
   }
@@ -214,9 +214,9 @@ export class RedisConnection {
       const info = await this.redis.info('memory');
       const parsed = this.parseRedisInfo(info);
 
-      const used = parseInt(parsed.used_memory || '0');
-      const peak = parseInt(parsed.used_memory_peak || '0');
-      const overhead = parseInt(parsed.mem_fragmentation_ratio || '0');
+      const used = parseInt(parsed.used_memory || '0', 10);
+      const peak = parseInt(parsed.used_memory_peak || '0', 10);
+      const overhead = parseInt(parsed.mem_fragmentation_ratio || '0', 10);
 
       return {
         used,
@@ -254,7 +254,7 @@ export class RedisConnection {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     if (bytes === 0) return '0 Bytes';
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round((bytes / 1024 ** i) * 100) / 100 + ' ' + sizes[i];
+    return `${Math.round((bytes / 1024 ** i) * 100) / 100} ${sizes[i]}`;
   }
 }
 

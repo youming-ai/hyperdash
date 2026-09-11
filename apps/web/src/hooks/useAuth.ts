@@ -1,144 +1,75 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { createSiweMessage } from 'viem/siwe';
 import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
+import { authClient, useSession } from '~/lib/auth-client';
 
-// import { apiClient, authApi } from '../lib/api';
-
-interface AuthState {
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  token: string | null;
-}
-
-const TOKEN_KEY = 'hyperdash_auth_token';
-const REFRESH_TOKEN_KEY = 'hyperdash_refresh_token';
-
+/**
+ * Sign-In With Ethereum flow against Better Auth's SIWE plugin.
+ *
+ * 1. request a nonce, 2. build + sign a SIWE message with the connected wallet,
+ * 3. verify it to establish a Better Auth session (cookie).
+ */
 export function useAuth() {
-  const { address, isConnected } = useAccount();
+  const { address, chainId, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { disconnect } = useDisconnect();
+  const { data: session, isPending } = useSession();
+  const [error, setError] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
-  const [state, setState] = useState<AuthState>({
-    isAuthenticated: false,
-    isLoading: false,
-    error: null,
-    token: null,
-  });
-
-  // Check for existing token on mount
-  useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      // apiClient.setToken(token);
-      setState((prev) => ({ ...prev, isAuthenticated: true, token }));
-    }
-  }, []);
-
-  // Login with wallet signature
-  const login = useCallback(async () => {
-    if (!address) {
-      setState((prev) => ({ ...prev, error: 'No wallet connected' }));
+  const signIn = async () => {
+    if (!address || !chainId) {
+      setError('Connect a wallet first');
       return;
     }
-
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
-
+    setIsSigningIn(true);
+    setError(null);
     try {
-      // TODO: Implement API calls when apiClient is set up
-      /*
-      // 1. Get nonce from server
-      const { nonce } = await authApi.getNonce(address);
+      const { data, error: nonceError } = await authClient.siwe.nonce({
+        walletAddress: address,
+        chainId,
+      });
+      if (nonceError || !data) throw new Error('Failed to get nonce');
 
-      // 2. Create message to sign
-      const message = `Sign this message to login to HyperDash.\n\nNonce: ${nonce}\nWallet: ${address}\nTimestamp: ${Date.now()}`;
-
-      // 3. Sign message with wallet
+      const message = createSiweMessage({
+        address,
+        chainId,
+        domain: window.location.host,
+        uri: window.location.origin,
+        version: '1',
+        nonce: data.nonce,
+        statement: 'Sign in to HyperDash',
+      });
       const signature = await signMessageAsync({ message });
 
-      // 4. Send signature to server for verification
-      const { token, refreshToken } = await authApi.login(address, signature, message);
-
-      // 5. Store tokens
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-      apiClient.setToken(token);
-
-      setState({
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-        token,
+      const { error: verifyError } = await authClient.siwe.verify({
+        message,
+        signature,
+        walletAddress: address,
+        chainId,
       });
-      */
-      throw new Error('Not implemented');
-    } catch (error) {
-      console.error('Login error:', error);
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Login failed',
-      }));
+      if (verifyError) throw new Error('Signature verification failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-in failed');
+    } finally {
+      setIsSigningIn(false);
     }
-  }, [address, signMessageAsync]);
+  };
 
-  // Logout
-  const logout = useCallback(async () => {
-    // try {
-    //   await authApi.logout();
-    // } catch (error) {
-    //   // Ignore logout errors
-    // }
-
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    // apiClient.setToken(null);
+  const signOut = async () => {
+    await authClient.signOut();
     disconnect();
-
-    setState({
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-      token: null,
-    });
-  }, [disconnect]);
-
-  // Refresh token
-  const refreshToken = useCallback(async () => {
-    const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!storedRefreshToken) return;
-
-    try {
-      // TODO: Implement API call
-      // const { token } = await authApi.refreshToken(storedRefreshToken);
-      // localStorage.setItem(TOKEN_KEY, token);
-      // apiClient.setToken(token);
-      // setState((prev) => ({ ...prev, token }));
-    } catch (error) {
-      // Refresh failed, logout user
-      logout();
-    }
-  }, [logout]);
-
-  // Auto-refresh token periodically
-  useEffect(() => {
-    if (!state.isAuthenticated) return;
-
-    const interval = setInterval(
-      () => {
-        refreshToken();
-      },
-      14 * 60 * 1000,
-    ); // Refresh every 14 minutes
-
-    return () => clearInterval(interval);
-  }, [state.isAuthenticated, refreshToken]);
+  };
 
   return {
-    ...state,
-    address,
+    session,
+    isAuthenticated: Boolean(session),
+    isLoading: isPending,
+    isSigningIn,
     isConnected,
-    login,
-    logout,
-    refreshToken,
+    address,
+    error,
+    signIn,
+    signOut,
   };
 }

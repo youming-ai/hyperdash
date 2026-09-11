@@ -1,6 +1,0 @@
-# pnpm workspace configuration
-# https://pnpm.io/workspaces
-
-packages:
-  - 'apps/*'
-  - 'packages/*'

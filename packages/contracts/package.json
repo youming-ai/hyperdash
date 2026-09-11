@@ -17,7 +17,7 @@
     "@hyperdash/database": "workspace:*",
     "@trpc/server": "^10.43.6",
     "@trpc/client": "^10.43.6",
-    "zod": "^3.22.4",
+    "zod": "^4.3.6",
     "superjson": "^2.2.1",
     "jose": "^5.1.3"
   },

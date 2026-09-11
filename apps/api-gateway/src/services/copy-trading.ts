@@ -13,8 +13,6 @@ import type {
   NewCopyOrder,
   NewCopyPosition,
   NewCopyStrategy,
-  TraderStats,
-  TraderTrades,
 } from '@hyperdash/database';
 import {
   agentWallets,
@@ -23,7 +21,6 @@ import {
   copyPositions,
   copyStrategies,
   traderStats,
-  traderTrades,
 } from '@hyperdash/database';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getDatabaseConnection } from './connection';

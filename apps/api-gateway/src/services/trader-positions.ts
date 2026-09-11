@@ -1,6 +1,6 @@
 import type * as schema from '@hyperdash/database';
 import { traderPositions } from '@hyperdash/database';
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { TraderPositionRow } from './hyperliquid';
 

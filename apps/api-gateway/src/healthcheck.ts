@@ -1,4 +1,4 @@
-import http from 'http';
+import http from 'node:http';
 import { getLogger } from './utils/logger';
 
 const logger = getLogger();
@@ -124,7 +124,7 @@ const checkHyperliquidAPI = async () => {
 };
 
 // Health check HTTP server
-const server = http.createServer(async (req, res) => {
+const server = http.createServer(async (_req, res) => {
   try {
     const healthData = await healthCheck();
     const isHealthy = healthData.status === 'healthy';

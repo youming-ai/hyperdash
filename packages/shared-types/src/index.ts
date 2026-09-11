@@ -97,21 +97,21 @@ export const SystemHealth = z.object({
   timestamp: z.string(),
   version: z.string(),
   uptime: z.number(),
-  components: z.record(z.any()),
-  metrics: z.record(z.any()),
+  components: z.record(z.string(), z.any()),
+  metrics: z.record(z.string(), z.any()),
 });
 
 export const SystemMetrics = z.object({
   timeframe: z.string(),
   granularity: z.string(),
   generatedAt: z.string(),
-  system: z.record(z.any()),
-  application: z.record(z.any()),
+  system: z.record(z.string(), z.any()),
+  application: z.record(z.string(), z.any()),
 });
 
 export const SystemStatus = z.object({
   timestamp: z.string(),
-  services: z.record(z.any()),
+  services: z.record(z.string(), z.any()),
   alerts: z.array(z.any()),
   recentEvents: z.array(z.any()),
 });
@@ -122,9 +122,9 @@ export const UserProfile = z.object({
   walletAddr: z.string().optional(),
   kycLevel: z.number().optional(),
   status: z.string().optional(),
-  preferences: z.record(z.any()).optional(),
-  subscription: z.record(z.any()).optional(),
-  stats: z.record(z.any()).optional(),
+  preferences: z.record(z.string(), z.any()).optional(),
+  subscription: z.record(z.string(), z.any()).optional(),
+  stats: z.record(z.string(), z.any()).optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
@@ -137,10 +137,10 @@ export const AgentWallet = z.object({
   status: z.string().optional(),
   minOrderUsd: z.number().optional(),
   maxLeverage: z.number().optional(),
-  permissions: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional(),
+  permissions: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   positions: z.array(z.any()).optional(),
-  balance: z.record(z.any()).optional(),
+  balance: z.record(z.string(), z.any()).optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
@@ -166,7 +166,7 @@ export const Notification = z.object({
   type: z.string().optional(),
   title: z.string().optional(),
   message: z.string().optional(),
-  data: z.record(z.any()).optional(),
+  data: z.record(z.string(), z.any()).optional(),
   read: z.boolean().optional(),
   createdAt: z.string().optional(),
 });
@@ -189,14 +189,45 @@ export const UserStatistics = z.object({
   timeframe: z.string().optional(),
   periodStart: z.string().optional(),
   periodEnd: z.string().optional(),
-  overview: z.record(z.any()).optional(),
-  copyTrading: z.record(z.any()).optional(),
-  performance: z.record(z.any()).optional(),
-  risk: z.record(z.any()).optional(),
-  engagement: z.record(z.any()).optional(),
+  overview: z.record(z.string(), z.any()).optional(),
+  copyTrading: z.record(z.string(), z.any()).optional(),
+  performance: z.record(z.string(), z.any()).optional(),
+  risk: z.record(z.string(), z.any()).optional(),
+  engagement: z.record(z.string(), z.any()).optional(),
 });
 
 // Schemas namespace for convenient access
+export {
+  default as feed,
+  FeedBook,
+  FeedCandle,
+  FeedCtx,
+  FeedLevel,
+  FeedState,
+  FeedTrade,
+  FundingPoint,
+  OiPoint,
+  PricePoint,
+  StressPoint,
+  VolumePoint,
+  WhaleFlowPoint,
+} from './feed';
+
+import {
+  FeedBookSchema,
+  FeedCandleSchema,
+  FeedCtxSchema,
+  FeedLevelSchema,
+  FeedStateSchema,
+  FeedTradeSchema,
+  FundingPointSchema,
+  OiPointSchema,
+  PricePointSchema,
+  StressPointSchema,
+  VolumePointSchema,
+  WhaleFlowPointSchema,
+} from './feed';
+
 export const schemas = {
   SystemHealth,
   SystemMetrics,
@@ -212,4 +243,16 @@ export const schemas = {
   HeatmapBin: HeatmapBinSchema,
   Trader: TraderSchema,
   CopyStrategy: CopyStrategySchema,
+  FeedLevel: FeedLevelSchema,
+  FeedBook: FeedBookSchema,
+  FeedTrade: FeedTradeSchema,
+  FeedCandle: FeedCandleSchema,
+  FeedCtx: FeedCtxSchema,
+  FeedState: FeedStateSchema,
+  FundingPoint: FundingPointSchema,
+  PricePoint: PricePointSchema,
+  OiPoint: OiPointSchema,
+  VolumePoint: VolumePointSchema,
+  StressPoint: StressPointSchema,
+  WhaleFlowPoint: WhaleFlowPointSchema,
 };

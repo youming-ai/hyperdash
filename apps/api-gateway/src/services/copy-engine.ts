@@ -404,7 +404,7 @@ export class CopyTradingEngine {
     }
 
     // Decrypt private key
-    let account;
+    let account: any = null;
     try {
       const encryptionKey = getEncryptionKey();
       const privateKey = decryptKey(agentWallet.encryptedPrivateKey, encryptionKey);

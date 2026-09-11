@@ -1,13 +1,14 @@
-import type { Config } from 'drizzle-kit';
+import { defineConfig } from 'drizzle-kit';
 
-export default {
+// Migrations connect DIRECTLY to Postgres (DATABASE_URL), never through Hyperdrive.
+// `schema.ts` re-exports `auth-schema.ts`, so both business and Better Auth tables
+// are covered by this single entry.
+export default defineConfig({
   schema: './src/schema.ts',
-  out: './drizzle/',
-  driver: 'pg',
+  out: './drizzle',
+  dialect: 'postgresql',
   dbCredentials: {
-    connectionString:
-      process.env.DATABASE_URL ||
-      'postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash',
+    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/hyperdash',
   },
   strict: true,
-} satisfies Config;
+});

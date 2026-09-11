@@ -1,0 +1,31 @@
+name = "hyperdash-web"
+main = "@tanstack/react-start/server-entry"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+# Self-hosted Postgres reached through Hyperdrive (edge pooler + cache).
+# Provision: `wrangler hyperdrive create hyperdash-db --connection-string="postgres://user:pass@host:5432/db"`
+# then paste the returned id below. `localConnectionString` is used by `wrangler dev`.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "REPLACE_WITH_HYPERDRIVE_ID"
+localConnectionString = "postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash"
+
+# Session/cache acceleration + approximate rate-limit state.
+# Provision: `wrangler kv namespace create KV` then paste the id below.
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_KV_ID"
+
+[vars]
+PUBLIC_ORIGIN = "http://localhost:5173"
+HYPERLIQUID_API_URL = "https://api.hyperliquid.xyz/info"
+
+# Secrets (NEVER here): set with `wrangler secret put NAME`
+#   BETTER_AUTH_SECRET   (openssl rand -base64 32)
+#   RESEND_API_KEY
+#   EMAIL_FROM           (verified Resend sender)
+#   SENTRY_DSN           (optional)
