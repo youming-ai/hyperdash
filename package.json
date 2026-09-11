@@ -24,6 +24,7 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
+    "preflight": "bun scripts/preflight-deploy.ts",
     "db:migrate": "cd packages/database/postgres && bun run db:push",
     "prepare": "lefthook install",
     "db:generate": "cd packages/database/postgres && bun run migrate:generate"

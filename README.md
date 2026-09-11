@@ -133,6 +133,8 @@ packages/
 
 ## Docs
 
+- [`docs/deployment.md`](docs/deployment.md) — production topology (Workers +
+  Oracle Ampere A1), hard constraints, and the deploy procedure.
 - [`docs/ui-audit.md`](docs/ui-audit.md) — web UI review: method, measured
   evidence, what changed, and the remaining data-quality caveats.
 

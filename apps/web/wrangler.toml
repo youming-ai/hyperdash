@@ -9,31 +9,52 @@ mode = "smart"
 [observability]
 enabled = true
 
-# Self-hosted Postgres reached through Hyperdrive (edge pooler + cache).
-# Provision: `wrangler hyperdrive create hyperdash-db --connection-string="postgres://user:pass@host:5432/db"`
-# then paste the returned id below. `localConnectionString` is used by `wrangler dev`.
+# ---------------------------------------------------------------------------
+# PROVISION (one-time, per account). Both ids are account-specific and must be
+# replaced before the first deploy; scripts/preflight-deploy.ts refuses to run
+# while a placeholder survives.
+#
+#   bunx wrangler hyperdrive create hyperdash-db \
+#     --connection-string="postgres://hd_app:PASSWORD@DB_HOST:5432/hyperdash?sslmode=require"
+#   bunx wrangler kv namespace create KV
+# ---------------------------------------------------------------------------
+
+# Self-hosted Postgres, reached through Hyperdrive (edge pooler + cache).
+# `localConnectionString` is used only by `wrangler dev`.
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "REPLACE_WITH_HYPERDRIVE_ID"
 localConnectionString = "postgresql://postgres:postgres@localhost:5432/hyperdash"
 
 # Session/cache acceleration + approximate rate-limit state.
-# Provision: `wrangler kv namespace create KV` then paste the id below.
 [[kv_namespaces]]
 binding = "KV"
 id = "REPLACE_WITH_KV_ID"
 
 [vars]
+# Public origin the browser and Better Auth will see. MUST be the real https
+# origin before deploying: the SIWE domain is derived from it, so leaving
+# localhost here makes every wallet signature fail verification.
 PUBLIC_ORIGIN = "http://localhost:5173"
 HYPERLIQUID_API_URL = "https://api.hyperliquid.xyz/info"
-# FE/BE split: FE calls BE via VITE_BE_URL (public, build-time). When set,
-# FE's api-client targets BE Worker directly; otherwise same-origin fallback.
-# Example: VITE_BE_URL="https://hyperdash-api.workers.dev"
-VITE_BE_URL = ""
+
+# FE/BE split. `BE_URL` is read at RUNTIME by the web Worker
+# (src/routes/api/$.ts) and makes it proxy /api/* to the standalone BE Worker.
+# Prefer this: the browser stays same-origin, so no CORS and no SameSite=None
+# cookies are required. Set it to the BE Worker origin, e.g.
+# "https://hyperdash-api.<your-subdomain>.workers.dev".
 BE_URL = ""
 
-# Secrets (NEVER here): set with `wrangler secret put NAME`
-#   BETTER_AUTH_SECRET   (openssl rand -base64 32)
-#   RESEND_API_KEY
-#   EMAIL_FROM           (verified Resend sender)
-#   SENTRY_DSN           (optional)
+# NOTE: there is deliberately no VITE_BE_URL here. `VITE_*` values are inlined by
+# Vite at BUILD time (src/lib/api-client.ts reads import.meta.env), so declaring
+# one in `[vars]` cannot reach the client bundle. To have the browser call the BE
+# Worker directly instead of proxying, export VITE_BE_URL in the build
+# environment instead — and then handle CORS plus cross-site cookies yourself.
+
+# ---------------------------------------------------------------------------
+# Secrets (never in this file): `bunx wrangler secret put <NAME>`
+#   BETTER_AUTH_SECRET   openssl rand -base64 32
+#   RESEND_API_KEY       transactional email
+#   EMAIL_FROM           verified Resend sender
+#   SENTRY_DSN           optional
+# ---------------------------------------------------------------------------
